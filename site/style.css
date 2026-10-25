@@ -115,13 +115,34 @@ h1 {
 .legend-solid, .legend-dashed { display: inline-block; width: 24px; border-top: 4px solid #15805a; }
 .legend-dashed { border-top: 3px dashed #666; }
 .legend-arrow { display: inline-block; width: 24px; text-align: center; font-size: 1.2rem; color: #1b2921; }
-.maplibregl-popup-content p { margin: .4rem 0; }
-.maplibregl-popup-content details { margin-top: .5rem; }
+.maplibregl-popup-content {
+  width: min(360px, calc(100vw - 2rem));
+  max-height: min(68dvh, 38rem);
+  overflow-y: auto;
+  padding: 1rem;
+  color: #17221f;
+  font: .875rem/1.45 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+.osm-popup h2 { margin: 0; padding-right: 1.5rem; font-size: 1.1rem; line-height: 1.3; }
+.maplibregl-popup-content p { margin: .5rem 0; }
+.popup-source, .popup-note { color: #52635b; font-size: .78rem; }
+.popup-source { margin-top: .15rem !important; }
+.popup-status { padding: .45rem .6rem; border-radius: 5px; font-weight: 700; }
+.popup-status--yes { color: #185d3d; background: #e5f3ea; }
+.popup-status--review { color: #694700; background: #fff1d1; }
+.popup-status--no { color: #39443f; background: #edf0ee; }
+.popup-facts { display: grid; grid-template-columns: minmax(6.5rem, 38%) minmax(0, 1fr); gap: .4rem .65rem; margin: .75rem 0; }
+.popup-facts dt { color: #52635b; }
+.popup-facts dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.popup-note { margin-top: .75rem !important; }
+.popup-details { margin-top: .75rem; padding-top: .65rem; border-top: 1px solid #d9dfdc; }
 .maplibregl-popup-content summary { cursor: pointer; font-weight: 650; }
-.maplibregl-popup-content dl { display: grid; grid-template-columns: max-content 1fr; gap: .15rem .5rem; }
-.maplibregl-popup-content dt { font-weight: 650; }
-.maplibregl-popup-content dd { margin: 0; overflow-wrap: anywhere; }
-.maplibregl-popup-content hr { border: 0; border-top: 1px solid #d9dfdc; margin: .65rem 0; }
+.maplibregl-popup-content summary:focus-visible { outline: 2px solid #15805a; outline-offset: 3px; }
+.popup-tags { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: .2rem .5rem; }
+.popup-tags dt { font: .75rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+.popup-tags dd { margin: 0; overflow-wrap: anywhere; }
+.popup-subheading { margin-top: .75rem !important; font-weight: 650; }
+.popup-link { display: inline-block; margin-top: .65rem; }
 
 @media (max-width: 600px) {
   .map-tools { top: auto; right: .5rem; bottom: 3rem; left: .5rem; width: auto; max-width: none; max-height: 45dvh; padding: .6rem; }

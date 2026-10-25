@@ -35,11 +35,11 @@ let routeSourceFailed = false;
 let basemapFailed = false;
 
 function updateStatus() {
-  if (routeSourceFailed && basemapFailed) status.textContent = "Grundkarte und Routendaten konnten nicht geladen werden.";
-  else if (routeSourceFailed) status.textContent = "Rennvelo-/Laufdaten konnten nicht geladen werden.";
-  else if (basemapFailed && routeSourceLoaded) status.textContent = "Routendaten geladen; Grundkarte meldet einen Fehler.";
-  else if (basemapFailed) status.textContent = "Grundkarte konnte nicht geladen werden.";
-  else if (routeSourceLoaded) status.textContent = activeMode === "running" ? "Laufen · Fusszugang und Belag gemäss OSM" : "Rennvelo · Belag und Zugang gemäss OSM";
+  if (routeSourceFailed && basemapFailed) status.textContent = "Kartenhintergrund und Routendaten konnten nicht geladen werden.";
+  else if (routeSourceFailed) status.textContent = "Rennvelo- und Laufdaten konnten nicht geladen werden.";
+  else if (basemapFailed && routeSourceLoaded) status.textContent = "Routendaten geladen; Kartenhintergrund konnte nicht geladen werden.";
+  else if (basemapFailed) status.textContent = "Kartenhintergrund konnte nicht geladen werden.";
+  else if (routeSourceLoaded) status.textContent = activeMode === "running" ? "Laufen · Zugang und Belag laut Kartendaten" : "Rennvelo · Belag und Zugang laut Kartendaten";
 }
 
 map.on("sourcedata", (event) => {
@@ -172,95 +172,180 @@ function addParagraph(parent, text) {
   parent.append(paragraph);
 }
 
+function addFact(list, label, value) {
+  const term = document.createElement("dt");
+  term.textContent = label;
+  const description = document.createElement("dd");
+  description.textContent = value;
+  list.append(term, description);
+}
+
 function addRawTags(parent, values) {
   const tags = parseJson(values.tags, {});
   const entries = Object.entries(tags).sort(([a], [b]) => a.localeCompare(b));
-  const show = (label, keys, empty) => {
-    const found = keys.filter((key) => Object.hasOwn(tags, key)).map((key) => `${key}=${tags[key]}`);
-    addParagraph(parent, `${label}: ${found.join(" · ") || empty}`);
-  };
-  show("Belag", ["surface", "smoothness", "tracktype"], "nicht getaggt");
-  const stepTags = ["step_count", "ramp", "handrail", "conveying"].filter((key) => Object.hasOwn(tags, key));
-  if (tags.highway === "steps" || stepTags.length) {
-    show("Treppen", ["highway", ...stepTags], "Treppenmerkmale nicht erfasst");
-  } else {
-    addParagraph(parent, "Treppen: keine Treppen-Tags erfasst");
-  }
-  show("Zugang / Verbote", entries.map(([key]) => key).filter((key) =>
-    ["access", "bicycle", "vehicle", "motor_vehicle", "motorcar", "foot"].includes(key.split(":")[0])),
-  "keine entsprechenden Tags erfasst");
-  show("Richtung", entries.map(([key]) => key).filter((key) =>
-    key === "oneway" || key.startsWith("oneway:") || key.startsWith("cycleway:") ||
-    key === "bicycle:forward" || key === "bicycle:backward" ||
-    key === "bicycle:forward:conditional" || key === "bicycle:backward:conditional"),
-  "keine Richtungstags erfasst");
-
   const details = document.createElement("details");
+  details.className = "popup-details";
   const summary = document.createElement("summary");
-  summary.textContent = `Relevante OSM-Tags (${entries.length})`;
+  summary.textContent = "Technische Kartendetails";
   details.append(summary);
+  addParagraph(details, "Zusätzliche Angaben aus OpenStreetMap. Diese Einträge können unvollständig sein.");
   const list = document.createElement("dl");
+  list.className = "popup-tags";
   for (const [key, value] of entries) {
     const term = document.createElement("dt"); term.textContent = key;
     const definition = document.createElement("dd"); definition.textContent = value;
     list.append(term, definition);
   }
-  if (!entries.length) addParagraph(details, "Keine relevanten Tags erfasst.");
-  else details.append(list);
-  parent.append(details);
+  if (entries.length) details.append(list);
+  else addParagraph(details, "Keine zusätzlichen Angaben erfasst.");
 
   const barriers = parseJson(values.barriers, []);
+  const barrierTypes = {
+    bollard: "Pfosten", gate: "Tor", lift_gate: "Schranke", wall: "Mauer", fence: "Zaun",
+    stile: "Übersteighilfe", kissing_gate: "Drehtor", block: "Sperre",
+  };
   if (barriers.length) {
-    addParagraph(parent, "Zugeordnete Hindernisknoten:");
+    const heading = document.createElement("p");
+    heading.className = "popup-subheading";
+    heading.textContent = "Erfasste Hindernisse";
+    details.append(heading);
     for (const node of barriers) {
       const nodeTags = Object.entries(node.tags || {}).map(([key, value]) => `${key}=${value}`).join(" · ");
       const paragraph = document.createElement("p");
-      const evaluation = activeMode === "roadbike" ? ` (${node.status}${node.reason ? `: ${node.reason}` : ""})` : "";
-      paragraph.textContent = `Node ${node.osm}: ${nodeTags || "keine Tags"}${evaluation}`;
+      const evaluation = activeMode === "roadbike"
+        ? ({ yes: "Keine Velosperre erfasst", no: "Laut Kartendaten gesperrt", review: "Vor Ort prüfen" }[node.status] || "Einstufung unklar")
+        : "";
+      const type = Object.hasOwn(barrierTypes, node.tags?.barrier) ? barrierTypes[node.tags.barrier] : "Hindernis";
+      paragraph.textContent = `${type}${evaluation ? ` · ${evaluation}` : ""}${nodeTags ? ` · ${nodeTags}` : ""}`;
       if (/^\d+$/.test(node.osm)) {
         const link = document.createElement("a");
         link.href = `https://www.openstreetmap.org/node/${node.osm}`;
-        link.textContent = " OSM"; link.target = "_blank"; link.rel = "noopener";
-        paragraph.append(link);
+        link.textContent = `Kartenpunkt ${node.osm} öffnen`;
+        link.target = "_blank"; link.rel = "noopener";
+        paragraph.append(" · ", link);
       }
-      parent.append(paragraph);
+      details.append(paragraph);
     }
-  } else {
-    addParagraph(parent, "Keine passenden, getaggten Hindernisknoten auf diesem OSM-Weg gefunden.");
   }
+  parent.append(details);
 }
 
 function addOsmPopup(panel, values) {
   const section = document.createElement("section");
-  const title = document.createElement("strong");
-  title.textContent = `${values.name || values.tags && parseJson(values.tags, {}).highway || "Strasse / Weg"} · OpenStreetMap`;
+  section.className = "osm-popup";
+  const tags = parseJson(values.tags, {});
+  const wayTypes = {
+    cycleway: "Veloweg", footway: "Fussweg", path: "Weg", track: "Feld- oder Waldweg",
+    steps: "Treppe", pedestrian: "Fussgängerbereich", residential: "Quartierstrasse",
+    service: "Zufahrtsweg", primary: "Hauptstrasse", secondary: "Hauptstrasse",
+    tertiary: "Nebenstrasse", trunk: "Übergeordnete Strasse", motorway: "Autobahn",
+  };
+  const title = document.createElement("h2");
+  title.textContent = values.name || (Object.hasOwn(wayTypes, tags.highway) ? wayTypes[tags.highway] : "Weg ohne Namen");
   section.append(title);
-  const surface = { paved: "befestigt", unpaved: "unbefestigt", unknown: "unbekannt" };
+  const source = document.createElement("p");
+  source.className = "popup-source";
+  source.textContent = "Angaben aus OpenStreetMap";
+  section.append(source);
+
+  const facts = document.createElement("dl");
+  facts.className = "popup-facts";
   if (activeMode === "roadbike") {
-    const labels = {
-      yes: "Rennvelo-Kandidat gemäss Kartendaten",
-      review: "Prüfen – Kartendaten unklar",
-      no: "Nicht im Rennvelo-Profil markiert",
+    const assessments = {
+      yes: "Laut Kartendaten für Rennvelo geeignet",
+      review: "Angaben unklar – bitte vor Ort prüfen",
+      no: "Nicht als Rennvelo-Abschnitt eingestuft",
     };
-    addParagraph(section, `Einordnung: ${labels[values.status] || "unbekannt"}`);
-    if (values.reason) addParagraph(section, `Grund: ${values.reason}`);
-    addParagraph(section, `Neigung: ${values.grade == null ? values.height || "unbekannt" : `ca. ${Math.abs(values.grade).toFixed(1)} % (Abschnitt bis 100 m)`}`);
-    const directions = { both: "beide Richtungen", forward: "OSM-Wayrichtung", reverse: "gegen OSM-Wayrichtung", none: "keine", review: "prüfen" };
-    addParagraph(section, `Velo-Richtung: ${directions[values.direction] || "unbekannt"}`);
+    const state = Object.hasOwn(assessments, values.status) ? values.status : "review";
+    const verdict = document.createElement("p");
+    verdict.className = `popup-status popup-status--${state}`;
+    verdict.textContent = assessments[state] || assessments.review;
+    section.append(verdict);
+    const reason = describeReason(values.reason);
+    if (reason) addParagraph(section, reason);
+    const directions = {
+      both: "In beide Richtungen", forward: "Nur in eine Richtung; Richtungspfeile ab Zoomstufe 14",
+      reverse: "Nur in eine Richtung; Richtungspfeile ab Zoomstufe 14", none: "Laut Karte in keiner Richtung freigegeben",
+      review: "Nicht eindeutig angegeben",
+    };
+    addFact(facts, "Fahrtrichtung", Object.hasOwn(directions, values.direction) ? directions[values.direction] : "Nicht angegeben");
+    addFact(facts, "Belag", describeSurface(tags));
   } else {
-    const foot = { yes: "zugänglich gemäss Kartendaten", review: "Zugang prüfen", no: "nicht im Laufnetz" };
-    addParagraph(section, `Laufen: ${foot[values.foot_status] || "Zugang prüfen"}; Belag ${surface[values.run_surface] || "unbekannt"}`);
-    addParagraph(section, `Neigung: ${values.grade == null ? values.height || "unbekannt" : `ca. ${Math.abs(values.grade).toFixed(1)} % (Abschnitt bis 100 m)`}`);
+    const foot = {
+      yes: "Laut Kartendaten zu Fuss zugänglich", review: "Zugang zu Fuss unklar – bitte vor Ort prüfen",
+      no: "Laut Kartendaten nicht zu Fuss zugänglich",
+    };
+    const state = Object.hasOwn(foot, values.foot_status) ? values.foot_status : "review";
+    const verdict = document.createElement("p");
+    verdict.className = `popup-status popup-status--${state}`;
+    verdict.textContent = foot[state] || foot.review;
+    section.append(verdict);
+    const runSurface = { paved: "Befestigt", unpaved: "Unbefestigt", unknown: "Unklar oder nicht eingeteilt" };
+    addFact(facts, "Belag", Object.hasOwn(runSurface, values.run_surface) ? runSurface[values.run_surface] : "Unklar oder nicht eingeteilt");
   }
+  addFact(facts, "Steigung oder Gefälle", describeGrade(values.grade, values.height));
+  const barriers = parseJson(values.barriers, []);
+  addFact(facts, "Hindernisse", barriers.length
+    ? `${barriers.length} ${barriers.length === 1 ? "Eintrag" : "Einträge"} erfasst – Details unten`
+    : "Keine eingetragen");
+  section.append(facts);
+  const note = document.createElement("p");
+  note.className = "popup-note";
+  note.textContent = "Kartendaten können unvollständig sein. Bitte Hinweise und Schilder vor Ort beachten.";
+  section.append(note);
   addRawTags(section, values);
   if (/^\d+$/.test(values.osm)) {
     const link = document.createElement("a");
     link.href = `https://www.openstreetmap.org/way/${values.osm}`;
-    link.textContent = "OSM-Weg öffnen";
+    link.className = "popup-link";
+    link.textContent = "Diesen Weg in OpenStreetMap ansehen";
     link.target = "_blank"; link.rel = "noopener";
     section.append(link);
   }
   panel.append(section);
+}
+
+function describeSurface(tags) {
+  const surfaces = {
+    asphalt: "Asphalt", concrete: "Beton", "concrete:plates": "Betonplatten", "concrete:lanes": "Betonspuren",
+    paved: "Befestigt",
+    paving_stones: "Pflastersteine", sett: "Kopfsteinpflaster", cobblestone: "Kopfsteinpflaster",
+    unhewn_cobblestone: "Grobpflaster", pebblestone: "Kieselsteine", grass_paver: "Rasengittersteine",
+    unpaved: "Unbefestigt", compacted: "Verdichteter Untergrund", fine_gravel: "Feiner Kies",
+    gravel: "Kies oder Schotter", ground: "Erde", dirt: "Erde", earth: "Erde",
+    grass: "Gras", sand: "Sand", mud: "Schlamm", woodchips: "Holzschnitzel",
+  };
+  if (Object.hasOwn(surfaces, tags.surface)) return surfaces[tags.surface];
+  const tracktypes = {
+    grade1: "Fest (Stufe 1 von 5)", grade2: "Überwiegend fest (Stufe 2 von 5)",
+    grade3: "Teils fest, teils weich (Stufe 3 von 5)", grade4: "Überwiegend weich (Stufe 4 von 5)",
+    grade5: "Weich (Stufe 5 von 5)",
+  };
+  if (Object.hasOwn(tracktypes, tags.tracktype)) return tracktypes[tags.tracktype];
+  if (tags.surface || tags.tracktype) return "Weitere Belagangabe erfasst (Details öffnen)";
+  return "In OpenStreetMap nicht angegeben";
+}
+
+function describeGrade(grade, height) {
+  if (grade != null) return `Etwa ${Math.abs(grade).toFixed(1).replace(".", ",")} % im Durchschnitt (Abschnitt bis 100 m)`;
+  if (height === "Bauwerk – Höhe prüfen") return "Bei Brücken und Tunneln nicht aus Geländedaten ableitbar";
+  if (height === "Nicht berechnet – ausserhalb Fuss-/Rennvelo-Netz") return "Für diesen Weg nicht berechnet";
+  return "Keine verlässlichen Höhendaten";
+}
+
+function describeReason(reason) {
+  if (!reason) return "";
+  if (reason.includes("Belag nicht ausreichend erfasst")) return "Der Belag ist in der Karte nicht genau beschrieben.";
+  if (reason.includes("Velofreigabe bei highway=trunk")) return "Ob Velos auf dieser Strasse fahren dürfen, ist aus den Kartendaten nicht klar.";
+  if (reason.includes("Zugang oder Fahrtrichtung") || reason.includes("Zugang unklar") || reason.includes("Sperre/Hindernis prüfen")) return "Angaben zu Zugang, Fahrtrichtung oder Hindernissen sind unklar.";
+  if (reason.includes("Hindernis prüfen")) return "Ein mögliches Hindernis ist eingetragen; bitte vor Ort prüfen.";
+  if (reason.includes("Hindernis")) return "Ein Hindernis ist eingetragen; bitte vor Ort prüfen.";
+  if (reason.includes("Sperre:")) return "Der Zugang ist laut Kartendaten eingeschränkt.";
+  if (reason.includes("Autobahn/Autostrasse")) return "In OpenStreetMap als Autobahn oder Autostrasse markiert.";
+  if (reason.includes("Treppe")) return "In OpenStreetMap als Treppe markiert.";
+  if (reason.includes("Bau oder Planung")) return "Laut OpenStreetMap im Bau oder geplant.";
+  if (reason.includes("Unbefestigt")) return "Der Belag ist unbefestigt oder als ungeeignet eingestuft.";
+  return "";
 }
 
 map.on("click", (event) => {
@@ -270,5 +355,5 @@ map.on("click", (event) => {
   if (!feature) return;
   const panel = document.createElement("div");
   addOsmPopup(panel, feature.properties);
-  new maplibregl.Popup({ maxWidth: "320px" }).setLngLat(event.lngLat).setDOMContent(panel).addTo(map);
+  new maplibregl.Popup({ maxWidth: "360px" }).setLngLat(event.lngLat).setDOMContent(panel).addTo(map);
 });
