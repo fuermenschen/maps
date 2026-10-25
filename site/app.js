@@ -152,7 +152,7 @@ map.on("sourcedata", (event) => {
 map.on("error", (event) => {
   console.error(event.error);
   if (event.sourceId === "roads") routeSourceFailed = true;
-  else basemapFailed = true;
+  else if (event.sourceId !== "terrain") basemapFailed = true;
   updateStatus();
 });
 
@@ -169,6 +169,11 @@ function installAppLayers() {
     url: `pmtiles://${new URL("./data/roads.pmtiles", import.meta.url).href}`,
     attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
   });
+  if (!map.getSource("terrain")) map.addSource("terrain", {
+    type: "raster-dem",
+    url: "https://tiles.mapterhorn.com/tilejson.json",
+  });
+  map.setTerrain({ source: "terrain", exaggeration: 5 });
   if (!map.getSource("basemap-fade")) map.addSource("basemap-fade", { type: "geojson", data: {
     type: "Feature", properties: {},
     geometry: { type: "Polygon", coordinates: [[[-180, -85], [180, -85], [180, 85], [-180, 85], [-180, -85]]] },

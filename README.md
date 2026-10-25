@@ -6,8 +6,9 @@ Static Winterthur map for exploring roadbike and running routes. MapLibre render
 
 ## Use map
 
-- **Rennvelo**: mapped roadbike candidates, direction arrows, optional uncertain sections, and optional terrain-slope colors.
+- **Rennvelo**: mapped roadbike candidates, direction arrows, optional uncertain sections, terrain-slope colors, and tiltable 3D terrain.
 - **Laufen**: OSM foot-accessible network. Solid lines are paved; dashed lines unpaved; dotted lines have unknown surface. Toggle slope coloring independently. No running score or time estimate.
+- 3D route overlays follow the ground model; bridge decks and tunnels are not modelled.
 - Click any OSM street/path, including sections not highlighted as route candidates, to inspect relevant source tags and matched barrier nodes.
 - **Methode & Daten** disclosure describes classifications, sources, and limitations. [`method.json`](site/data/method.json) contains input snapshots and SHA-256 checksums.
 
@@ -67,6 +68,7 @@ Commit both generated files when refreshing map. Raw PBF, GeoPackage, and DTM in
 - Roadbike: OSM tags plus documented Swiss planning defaults. `highway=trunk` alone does not prove an Autostrasse; uncertain access stays review. See [`gis/MAP.md`](gis/MAP.md) and [`gis/bicycle.py`](gis/bicycle.py).
 - Running: foot-specific access takes precedence over generic access; surface classes use `surface=*`. No score.
 - Elevation: WCS coverage advertises 0.5 m; product metadata says 0.25 m, epoch 2021/22. Processing uses 5 m mosaic, 5 m sampling, 10 m centered smoothing, and grade per segment up to 100 m. Do not describe processing as 0.25 m.
+- 3D terrain uses [Mapterhorn terrain tiles](https://mapterhorn.com/attribution) with 5× vertical exaggeration; route lines follow terrain, not bridge decks or tunnel surfaces.
 - Kanton Zürich Veloinfrastruktur files exist in local cache but are not used in published map. swissTLM3D is not used.
 
 See [`gis/MAP.md`](gis/MAP.md) for map interpretation and access defaults; [`gis/CALIBRATION.md`](gis/CALIBRATION.md) documents the elevation smoothing calibration.

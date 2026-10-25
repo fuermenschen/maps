@@ -21,6 +21,7 @@ Published area: current bbox [8.58, 47.38, 8.92, 47.63], approximately 25.5 × 2
 - Grey solid lines: bicycle suitability retained, elevation unavailable (e.g. bridge/tunnel).
 - Every OSM `highway=*` line in the build is clickable at map zoom 11+, including ways not shown as roadbike candidates. No highlight does not mean prohibition.
 - **Laufen** view: OSM foot-access network, paved solid/unpaved dashed. Neigung colors are toggleable; surface line styles remain. No score or time estimate.
+- Tilt map for 3D terrain. Route overlays follow ground surface; bridge decks and tunnels are not modelled.
 - Controls sit inside map; collapse Kartenoptionen summary to hide panel. Deckkraft slider fades basemap, including labels, below route lines.
 
 ## Access and suitability
@@ -37,7 +38,7 @@ Relevant barrier/access nodes are read from original PBF and associated by exact
 
 ## Sources and processing
 
-Elevation input comes from [Kanton Zürich DTM WCS](https://wms.zh.ch/DEMWCS). WCS coverage advertises 0.5 m; product metadata identifies 2021/22 at 0.25 m. Current mosaic is resampled to 5 m; builder samples every 5 m, applies centred 10 m smoothing, then computes grade between segment endpoints over accessible roadbike or foot segments up to 100 m (except stairs). These are terrain grades, not surveyed road/deck grades. See `site/data/method.json` for current source timestamps, AOI bounds, checksums, and full settings.
+Elevation input comes from [Kanton Zürich DTM WCS](https://wms.zh.ch/DEMWCS). WCS coverage advertises 0.5 m; product metadata identifies 2021/22 at 0.25 m. Current mosaic is resampled to 5 m; builder samples every 5 m, applies centred 10 m smoothing, then computes grade between segment endpoints over accessible roadbike or foot segments up to 100 m (except stairs). These are terrain grades, not surveyed road/deck grades. 3D terrain uses [Mapterhorn tiles](https://mapterhorn.com/attribution) with 5× vertical exaggeration. See `site/data/method.json` for current source timestamps, AOI bounds, checksums, and full settings.
 
 The downloaded Kanton Zürich Veloinfrastruktur WFS is not used in published map. swissTLM3D is not used. Data gaps: unknown tags, incomplete barrier mapping, conditional rules not evaluated, and no field verification. Legal references: [VRV Art. 35](https://www.fedlex.admin.ch/eli/cc/1962/1364_1409_1420/de), [ASTRA cycling guidance](https://www.astra.admin.ch/de/verkehrssituationen), and [OSM access-default guidance](https://wiki.openstreetmap.org/wiki/Default_access_restrictions). © OpenStreetMap contributors, [ODbL](https://www.openstreetmap.org/copyright). Basemap: swisstopo and credited providers. Map does not grant event-use permission.
 
