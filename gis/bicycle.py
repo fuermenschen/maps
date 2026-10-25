@@ -15,12 +15,13 @@ TAG_KEYS = {
     "bridge", "tunnel", "layer", "junction", "lit",
 }
 TAG_PREFIXES = ("access", "bicycle", "vehicle", "motor_vehicle", "motorcar", "foot",
+                "motorcycle", "motorbike", "agricultural", "forestry",
                 "oneway", "cycleway", "step", "ramp", "handrail")
 
 
 def source_tags(tags):
     return {key: value for key, value in tags.items()
-            if key in TAG_KEYS or any(key.startswith(prefix + ":") for prefix in TAG_PREFIXES)}
+            if key in TAG_KEYS or key in TAG_PREFIXES or any(key.startswith(prefix + ":") for prefix in TAG_PREFIXES)}
 
 
 def permission(tags, side, default="review"):
@@ -30,6 +31,10 @@ def permission(tags, side, default="review"):
             return "review", f"{key}:conditional={tags[key + ':conditional']}"
         value = tags.get(key)
         if value:
+            if key.split(":", 1)[0] == "access" and value in {"designated", "official", "dismount", "use_sidepath"}:
+                return "review", f"{key}={value} needs a specific travel mode"
+            if value == "discouraged":
+                return "review", f"{key}=discouraged"
             return ("yes" if value in ALLOWED else "no" if value in BLOCKED else "review"), f"{key}={value}"
     return default, "Zugang nach Strassentyp" if default != "review" else "Zugang unklar"
 
@@ -132,6 +137,18 @@ def check():
     assert assess(paved | {"highway": "footway", "bicycle": "yes"})[0] == "yes"
     assert assess(paved | {"bicycle": "destination"})[0] == "no"
     assert assess(paved | {"bicycle:conditional": "no @ (Su)"})[0] == "review"
+    assert assess(paved | {"access": "forestry"})[0] == "no"
+    assert assess(paved | {"access": "forestry", "bicycle": "yes"})[0] == "yes"
+    assert assess(paved | {"motor_vehicle": "forestry"})[0] == "yes"
+    assert assess(paved | {"bicycle": "yes", "motor_vehicle": "forestry",
+                           "motorcar": "no", "motorcycle": "no"})[:2] == ("yes", "both")
+    assert assess(paved | {"vehicle": "forestry"})[0] == "no"
+    assert assess(paved | {"access": "designated"})[0] == "review"
+    assert assess(paved | {"access": "use_sidepath"})[0] == "review"
+    assert assess(paved | {"bicycle": "use_sidepath"})[0] == "no"
+    assert assess(paved | {"bicycle": "designated"})[0] == "yes"
+    assert assess(paved | {"access": "official"})[0] == "review"
+    assert assess(paved | {"bicycle": "official"})[0] == "yes"
     assert assess(paved | {"access:conditional": "no @ (Su)", "bicycle": "yes"})[0] == "yes"
     assert assess(paved | {"bicycle:forward": "no"})[1] == "reverse"
     assert assess({"highway": "residential"})[0] == "review"
@@ -139,8 +156,11 @@ def check():
     assert obstacle({"barrier": "gate", "bicycle": "yes"})[0] == "review"
     assert obstacle({"bicycle": "no"})[0] == "no"
     assert source_tags({"highway": "steps", "surface": "asphalt", "step_count": "4",
-                        "bicycle:conditional": "no @ (Su)", "unrelated": "x"}) == {
+                        "bicycle": "yes", "motor_vehicle": "forestry", "motorcar": "no",
+                        "motorcycle": "no", "bicycle:conditional": "no @ (Su)", "unrelated": "x"}) == {
                             "highway": "steps", "surface": "asphalt", "step_count": "4",
+                            "bicycle": "yes", "motor_vehicle": "forestry", "motorcar": "no",
+                            "motorcycle": "no",
                             "bicycle:conditional": "no @ (Su)"}
     print("Bicycle-access checks passed")
 

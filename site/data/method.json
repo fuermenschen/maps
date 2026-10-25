@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-10-25T16:26:11.232203+00:00",
+  "generated_at": "2026-10-25T17:32:04.794665+00:00",
   "area_of_interest": {
     "description": "Current Winterthur-area extent; axis-aligned bounding box",
     "geometry": "axis-aligned bounding box",
@@ -66,12 +66,16 @@
       ],
       "prefixes": [
         "access",
+        "agricultural",
         "bicycle",
         "cycleway",
         "foot",
+        "forestry",
         "handrail",
         "motor_vehicle",
+        "motorbike",
         "motorcar",
+        "motorcycle",
         "oneway",
         "ramp",
         "step",
@@ -325,21 +329,21 @@
   "feature_counts": {
     "total": 173690,
     "roadbike_status": {
-      "yes": 45141,
+      "yes": 45138,
       "no": 85872,
-      "review": 42677
+      "review": 42680
     },
     "running_foot_access": {
-      "yes": 162242,
+      "yes": 162232,
       "no": 10519,
-      "review": 929
+      "review": 939
     }
   },
   "output": {
     "file": "site/data/roads.pmtiles",
-    "size_bytes": 37030445,
-    "sha256": "a55e5bdc8d5bdf2d3df0ec1a55ec4a9287dbb27aa22eb755a9408c44a3b2e4ad",
-    "local_modified_at": "2026-10-25T16:26:11.054452+00:00"
+    "size_bytes": 37936773,
+    "sha256": "ab05ca76310bbb9205df612fa3439d991c413f0612961896dfcdbd8c273b9457",
+    "local_modified_at": "2026-10-25T17:32:04.646968+00:00"
   },
   "known_limitations": [
     "A mapped-data planning profile, not legal verification or field survey.",

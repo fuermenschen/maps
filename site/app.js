@@ -180,6 +180,37 @@ function addFact(list, label, value) {
   list.append(term, description);
 }
 
+function addAccessFacts(list, tags) {
+  const modes = {
+    access: "Alle Verkehrsarten", vehicle: "Alle Fahrzeuge", bicycle: "Velos", foot: "Zu Fuss",
+    motor_vehicle: "Motorfahrzeuge", motorcar: "Autos", motorcycle: "Motorräder", motorbike: "Motorfahrräder",
+    agricultural: "Landwirtschaftliche Fahrzeuge", forestry: "Forstfahrzeuge",
+  };
+  const values = {
+    yes: "erlaubt", no: "verboten", designated: "vorgesehen oder ausgeschildert",
+    official: "offiziell bestimmt (veraltete Angabe)", permissive: "mit widerrufbarer Erlaubnis",
+    private: "nur mit persönlicher Erlaubnis", destination: "nur für Zielverkehr",
+    customers: "nur für Kundschaft", delivery: "nur für Lieferverkehr",
+    forestry: "nur für Forstwirtschaft", agricultural: "nur für Landwirtschaft",
+    permit: "nur mit Bewilligung", dismount: "nur schiebend",
+    use_sidepath: "Parallelweg benutzen", discouraged: "erlaubt, aber nicht empfohlen",
+    unknown: "unbekannt", variable: "zeitlich wechselnd", military: "nur für militärische Zwecke (umstrittene Verwendung)",
+  };
+  for (const [key, rawValue] of Object.entries(tags)) {
+    const [mode, ...qualifiers] = key.split(":");
+    if (!Object.hasOwn(modes, mode)) continue;
+    const direction = qualifiers.includes("forward") ? "in eingezeichneter Richtung"
+      : qualifiers.includes("backward") ? "gegen eingezeichnete Richtung" : "";
+    const label = [modes[mode], direction, qualifiers.includes("conditional") ? "zeitabhängig" : ""]
+      .filter(Boolean).join(" · ");
+    const entries = String(rawValue).split("@")[0].trim().split(";").map((value) => value.trim());
+    const descriptions = entries.map((value) => mode === "access" && ["designated", "official", "dismount", "use_sidepath"].includes(value)
+      ? "nicht eindeutig für alle Verkehrsarten; bitte prüfen"
+      : Object.hasOwn(values, value) ? values[value] : "nicht eindeutig (Details öffnen)");
+    addFact(list, label, [...new Set(descriptions)].join(" oder "));
+  }
+}
+
 function addRawTags(parent, values) {
   const tags = parseJson(values.tags, {});
   const entries = Object.entries(tags).sort(([a], [b]) => a.localeCompare(b));
@@ -250,6 +281,7 @@ function addOsmPopup(panel, values) {
 
   const facts = document.createElement("dl");
   facts.className = "popup-facts";
+  addAccessFacts(facts, tags);
   if (activeMode === "roadbike") {
     const assessments = {
       yes: "Laut Kartendaten für Rennvelo geeignet",
