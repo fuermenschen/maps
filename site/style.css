@@ -164,6 +164,9 @@ h1 {
 .map-mode legend { margin-bottom: .25rem; font-weight: 650; }
 .map-mode label { display: inline-flex; align-items: center; gap: .25rem; }
 .map-mode input, .map-tools input { accent-color: var(--accent); }
+.map-tools button { padding: .4rem .55rem; border: 1px solid var(--border); border-radius: 4px; color: var(--text); background: var(--panel-bg); font: inherit; cursor: pointer; }
+.map-tools button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.map-tools button:disabled { opacity: .55; cursor: wait; }
 .opacity-control { display: grid !important; grid-template-columns: 1fr auto; gap: .35rem .5rem; align-items: center; }
 .opacity-control input { grid-column: 1 / -1; width: 100%; margin: 0; }
 .opacity-control output { color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -192,6 +195,11 @@ h1 {
 .grade-10 { background: var(--grade-10); }
 .grade-15 { background: var(--grade-15); }
 .grade-missing { background: var(--grade-missing); }
+.legend i.grade-0, .legend i.grade-missing { height: 2px; }
+.legend i.grade-3 { height: 3px; }
+.legend i.grade-6 { height: 4px; }
+.legend i.grade-10 { height: 5px; }
+.legend i.grade-15 { height: 6px; }
 .maplibregl-popup-content {
   width: min(360px, calc(100vw - 2rem));
   max-height: min(68dvh, 38rem);
@@ -203,6 +211,7 @@ h1 {
   font: .875rem/1.45 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 .osm-popup h2 { margin: 0; padding-right: 1.5rem; font-size: 1.1rem; line-height: 1.3; }
+.osm-popup h2:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 .maplibregl-popup-content p { margin: .5rem 0; }
 .popup-source, .popup-note { color: var(--muted); font-size: .78rem; }
 .popup-source { margin-top: .15rem !important; }

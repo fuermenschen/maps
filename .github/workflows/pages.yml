@@ -23,8 +23,23 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: actions/configure-pages@v5
+      - name: Test dark style
+        run: node test_dark_style.mjs
       - name: Check published map data
-        run: test -s site/data/roads.pmtiles && test -s site/data/method.json
+        run: |
+          test -s site/data/roads.pmtiles && test -s site/data/method.json
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { createHash } from "node:crypto";
+          import { readFileSync } from "node:fs";
+
+          const file = "site/data/roads.pmtiles";
+          const manifest = JSON.parse(readFileSync("site/data/method.json", "utf8"));
+          const roads = readFileSync(file);
+          assert.equal(manifest.output.file, file);
+          assert.equal(manifest.output.size_bytes, roads.length);
+          assert.equal(manifest.output.sha256, createHash("sha256").update(roads).digest("hex"));
+          NODE
       - uses: actions/upload-pages-artifact@v4
         with:
           path: site

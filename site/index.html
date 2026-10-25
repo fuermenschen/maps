@@ -40,6 +40,9 @@
             <label><input type="radio" name="map-mode" value="roadbike" checked disabled /> Rennvelo</label>
             <label><input type="radio" name="map-mode" value="running" disabled /> Laufen</label>
           </fieldset>
+          <button id="inspect-segment" type="button" aria-describedby="inspect-help" disabled>Abschnitt in Kartenmitte untersuchen</button>
+          <p id="inspect-help">Karte mit Tab fokussieren: Pfeiltasten verschieben um 100 Pixel, +/− zoomen. Danach hier Abschnitt untersuchen.</p>
+          <p id="inspect-status" role="status" aria-live="polite" aria-atomic="true"></p>
           <label id="gradient-control"><input id="gradient" type="checkbox" checked disabled /> Neigung einfärben</label>
           <label><input id="uncertain" type="checkbox" disabled /> Abschnitte mit unklaren Angaben anzeigen</label>
           <label class="opacity-control" for="basemap-opacity">
@@ -58,6 +61,7 @@
               <span><i class="grade-15"></i>ab 15 %</span>
               <span><i class="grade-missing"></i>Keine verlässliche Höhe</span>
             </div>
+            <p>Zusätzlich zur Farbe: Je steiler, desto breiter (0 bis &lt;3 % dünn; ab 15 % am breitesten). Ohne verlässliche Höhe bleibt die Linie dünn.</p>
             <p>Durchschnittliche Steigung oder Gefälle auf Abschnitten bis 100 m; kein punktueller Höchstwert.</p>
           </details>
 

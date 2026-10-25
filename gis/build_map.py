@@ -1,16 +1,28 @@
 # /// script
 # requires-python = ">=3.12"
-# dependencies = ["geopandas>=1.0,<2", "pyogrio>=0.10,<1", "rasterio>=1.4,<2", "osmium>=4,<5"]
+# dependencies = [
+#   "affine>=2.4,<3",
+#   "geopandas>=1.0,<2",
+#   "numpy>=1.26,<3",
+#   "osmium>=4,<5",
+#   "pyogrio>=0.10,<1",
+#   "pyproj>=3.6,<4",
+#   "rasterio>=1.4,<2",
+#   "shapely>=2,<3",
+# ]
 # ///
 """Build lean static roadbike overlay: uv run gis/build_map.py"""
 import argparse
 from collections import Counter
 from datetime import datetime, timezone
 import hashlib
+from importlib.metadata import version
 import json
 import math
 import os
 from pathlib import Path
+import platform
+import shutil
 import subprocess
 import time
 
@@ -26,6 +38,9 @@ from bicycle import ALLOWED, BLOCKED, ORDINARY, PAVED, UNPAVED, TAG_KEYS, TAG_PR
 from running import ALLOWED as FOOT_ALLOWED, BLOCKED as FOOT_BLOCKED, FOOT_DEFAULT_YES, assess as assess_foot, check as check_foot
 
 GIS = Path(__file__).resolve().parent
+SAMPLE_SPACING_M = 5
+SMOOTHING_WINDOW_M = 10
+MAX_SEGMENT_LENGTH_M = 100
 
 
 class Obstacles:
@@ -66,7 +81,7 @@ class Obstacles:
 
 
 def sample_profile(line, data, transform):
-    xs = np.append(np.arange(0, line.length, 5.), line.length)
+    xs = np.append(np.arange(0, line.length, SAMPLE_SPACING_M), line.length)
     points = line_interpolate_point(line, xs)
     cols, rows = ~transform * (np.array([p.x for p in points]), np.array([p.y for p in points]))
     cols, rows = cols - .5, rows - .5
@@ -77,7 +92,8 @@ def sample_profile(line, data, transform):
     dx, dy = cols[valid] - cc, rows[valid] - rr
     heights[valid] = ((1-dx)*(1-dy)*data[rr, cc] + dx*(1-dy)*data[rr, cc+1]
                      + (1-dx)*dy*data[rr+1, cc] + dx*dy*data[rr+1, cc+1])
-    left, right = np.searchsorted(xs, xs-5.00001), np.searchsorted(xs, xs+5.00001, side="right")
+    half_window = SMOOTHING_WINDOW_M / 2
+    left, right = np.searchsorted(xs, xs-half_window-1e-5), np.searchsorted(xs, xs+half_window+1e-5, side="right")
     return xs, np.array([np.mean(heights[a:b]) for a, b in zip(left, right)])
 
 
@@ -95,7 +111,38 @@ def file_metadata(path):
             "local_modified_at": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat()}
 
 
-def method_metadata(pbf, roads_file, dtm_files, osm_header, counts, foot_counts, archive):
+def elevation_metadata(dtm_vrt, mosaic_resolution_m):
+    return {
+        "source": "Kanton Zürich DTM WCS",
+        "source_url": "https://wms.zh.ch/DEMWCS",
+        "coverage_id": dtm_vrt.stem,
+        "product_survey_epoch": "2021/22",
+        "product_metadata_resolution_m": 0.25,
+        "wcs_coverage_advertised_resolution_m": 0.5,
+        "mosaic_resolution_m": mosaic_resolution_m,
+        "sample_spacing_m": SAMPLE_SPACING_M,
+        "smoothing_window_m": SMOOTHING_WINDOW_M,
+        "max_segment_length_m": MAX_SEGMENT_LENGTH_M,
+        "grade_method": (
+            "For accessible or review features in either view except stairs: bilinear DTM samples "
+            f"every {SAMPLE_SPACING_M} m, "
+            f"centred {SMOOTHING_WINDOW_M} m mean smoothing, then endpoint elevation difference "
+            f"over each map segment (at most {MAX_SEGMENT_LENGTH_M} m). Not a surveyed road/deck grade."
+        ),
+    }
+
+
+def command_version(command):
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=10, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode:
+        return None
+    return result.stdout.strip() or result.stderr.strip() or None
+
+
+def method_metadata(pbf, roads_file, dtm_files, osm_header, counts, foot_counts, archive, toolchain):
     tags = json.loads((GIS / "aoi.json").read_text())
     west, south, east, north = tags["wgs84_bbox"]
     corners = [Transformer.from_crs(4326, 2056, always_xy=True).transform(lon, lat)
@@ -106,6 +153,7 @@ def method_metadata(pbf, roads_file, dtm_files, osm_header, counts, foot_counts,
     return {
         "schema_version": 1,
         "generated_at": datetime.now(timezone.utc).isoformat(),
+        "toolchain": toolchain,
         "area_of_interest": {
             "description": tags["description"], "geometry": "axis-aligned bounding box",
             "bounds_wgs84": [west, south, east, north],
@@ -139,18 +187,7 @@ def method_metadata(pbf, roads_file, dtm_files, osm_header, counts, foot_counts,
                 "score": None,
             },
         },
-        "elevation": {
-            "source": "Kanton Zürich DTM WCS",
-            "source_url": "https://wms.zh.ch/DEMWCS",
-            "coverage_id": dtm_vrt.stem,
-            "product_survey_epoch": "2021/22",
-            "product_metadata_resolution_m": 0.25,
-            "wcs_coverage_advertised_resolution_m": 0.5,
-            "mosaic_resolution_m": tags["dtm_resolution_m"],
-            "sample_spacing_m": 5,
-            "smoothing_window_m": 10,
-            "grade_method": "For accessible or review features in either view except stairs: bilinear DTM samples, centred 10 m mean smoothing, then endpoint elevation difference over each map segment (at most 100 m). Not a surveyed road/deck grade.",
-        },
+        "elevation": elevation_metadata(dtm_vrt, tags["dtm_resolution_m"]),
         "datasets": {
             "used": ["OpenStreetMap road/access data within configured bbox", "Kanton Zürich DTM WCS"],
             "downloaded_not_used": [{
@@ -186,6 +223,14 @@ def main():
         assert needs_grade("yes", "no", "residential")
         assert not needs_grade("no", "no", "footway")
         assert not needs_grade("no", "yes", "steps")
+        elevation = elevation_metadata(Path("dtm_test.vrt"), 5)
+        assert elevation["sample_spacing_m"] == SAMPLE_SPACING_M
+        assert elevation["smoothing_window_m"] == SMOOTHING_WINDOW_M
+        assert elevation["max_segment_length_m"] == MAX_SEGMENT_LENGTH_M
+        assert all(f"{value} m" in elevation["grade_method"] for value in
+                   (SAMPLE_SPACING_M, SMOOTHING_WINDOW_M, MAX_SEGMENT_LENGTH_M))
+        assert all(version(name) for name in
+                   ("geopandas", "numpy", "pyogrio", "pyproj", "rasterio", "shapely", "osmium", "affine"))
         # Linear plane and nodata regression for bilinear sampling.
         from affine import Affine
         from shapely import LineString
@@ -235,7 +280,7 @@ def main():
             xs, heights = np.array([0., line.length]), np.array([np.nan, np.nan])
         else:
             xs, heights = sample_profile(line, data, transform)
-        n = math.ceil(line.length / 100)
+        n = math.ceil(line.length / MAX_SEGMENT_LENGTH_M)
         for part in range(n):
             start, end = part*line.length/n, (part+1)*line.length/n
             state, explanation = status, reason
@@ -252,7 +297,7 @@ def main():
             else:
                 a, b = np.interp([start, end], xs, heights)
                 # Do not estimate slopes across missing samples or bridge/tunnel terrain.
-                valid = not structure and np.isfinite(heights[(xs >= start-5) & (xs <= end+5)]).all() and np.isfinite([a,b]).all()
+                valid = not structure and np.isfinite(heights[(xs >= start-SAMPLE_SPACING_M) & (xs <= end+SAMPLE_SPACING_M)]).all() and np.isfinite([a,b]).all()
                 grade = round(float(100*(b-a)/(end-start)), 1) if valid else None
                 height = "Bauwerk – Höhe prüfen" if structure else "Geländehöhe" if valid else "Höhendaten fehlen"
             geometry = substring(line, start, end)
@@ -289,17 +334,27 @@ def main():
     staging = archive.with_name("roads.building.pmtiles")
     staging.unlink(missing_ok=True)
     print("Converting GeoJSON to PMTiles", flush=True)
-    subprocess.run([str(bundled) if bundled.exists() else "ogr2ogr", "-f", "PMTiles",
+    ogr2ogr = str(bundled) if bundled.exists() else (shutil.which("ogr2ogr") or "ogr2ogr")
+    pmtiles = shutil.which("pmtiles") or "pmtiles"
+    toolchain = {
+        "python": platform.python_version(),
+        "packages": {name: version(name) for name in ("geopandas", "numpy", "pyogrio", "pyproj", "rasterio", "shapely", "osmium", "affine")},
+        "external_tools": {
+            "ogr2ogr": command_version([ogr2ogr, "--version"]),
+            "pmtiles": command_version([pmtiles, "version"]),
+        },
+    }
+    subprocess.run([ogr2ogr, "-f", "PMTiles",
                     "-dsco", "NAME=HFM Routenkarte",
                     "-dsco", "DESCRIPTION=OSM-derived roadbike and running views, ODbL; terrain grades are not surveyed road heights.",
                     "-nln", "roads", "-dsco", "MINZOOM=11", "-dsco", "MAXZOOM=16",
                     "-dsco", "MAX_SIZE=5000000", str(staging), str(output)], check=True, env=env)
-    subprocess.run(["pmtiles", "verify", str(staging)], check=True)
+    subprocess.run([pmtiles, "verify", str(staging)], check=True)
     staging.replace(archive)
     method = GIS.parent / "site/data/method.json"
     method_tmp = method.with_suffix(".json.part")
     method_tmp.write_text(json.dumps(method_metadata(pbf, GIS / "work/osm_roads.gpkg", dtm_files,
-                                                     osm_header, counts, foot_counts, archive),
+                                                     osm_header, counts, foot_counts, archive, toolchain),
                                     indent=2, ensure_ascii=False) + "\n")
     method_tmp.replace(method)
     print(json.dumps(dict(counts), indent=2))

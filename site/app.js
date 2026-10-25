@@ -63,11 +63,16 @@ const uncertain = document.querySelector("#uncertain");
 const gradient = document.querySelector("#gradient");
 const opacity = document.querySelector("#basemap-opacity");
 const opacityValue = document.querySelector("#basemap-opacity-value");
+const inspectSegment = document.querySelector("#inspect-segment");
+const inspectStatus = document.querySelector("#inspect-status");
 const modes = document.querySelectorAll('input[name="map-mode"]');
 let activeMode = "roadbike";
 let routeSourceLoaded = false;
 let routeSourceFailed = false;
 let basemapFailed = false;
+const GRADE_STOPS = [3, 6, 10, 15];
+const roadbikeWidth = ["interpolate", ["linear"], ["zoom"], 11, 2.5, 16, 6];
+const runWidths = { "run-paved": 3.5, "run-unpaved": 3.5, "run-unknown": 3 };
 
 function cssColor(name) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -77,10 +82,22 @@ function gradeColors() {
   return ["--grade-0", "--grade-3", "--grade-6", "--grade-10", "--grade-15"].map(cssColor);
 }
 
+function gradeStep(input, outputs) {
+  return ["step", input, outputs[0], ...GRADE_STOPS.flatMap((stop, index) => [stop, outputs[index + 1]])];
+}
+
 function gradeExpression() {
   const [low, mild, moderate, steep, verySteep] = gradeColors();
   return ["case", ["==", ["get", "grade"], null], cssColor("--grade-missing"),
-    ["step", ["abs", ["get", "grade"]], low, 3, mild, 6, moderate, 10, steep, 15, verySteep]];
+    gradeStep(["abs", ["get", "grade"]], [low, mild, moderate, steep, verySteep])];
+}
+
+function gradeWidth(base) {
+  return ["*", base, gradeStep(["abs", ["coalesce", ["get", "grade"], 0]], [1, 1.15, 1.3, 1.45, 1.6])];
+}
+
+function roadbikeGradeWidth() {
+  return ["interpolate", ["linear"], ["zoom"], 11, gradeWidth(2.5), 16, gradeWidth(6)];
 }
 
 function updateUnclear() {
@@ -98,6 +115,8 @@ function updateGradient() {
   map.setPaintProperty("run-paved", "line-color", graded || cssColor("--run-paved"));
   map.setPaintProperty("run-unpaved", "line-color", graded || cssColor("--run-unpaved"));
   map.setPaintProperty("run-unknown", "line-color", graded || cssColor("--run-unknown"));
+  map.setPaintProperty("roadbike", "line-width", gradient.checked ? roadbikeGradeWidth() : roadbikeWidth);
+  for (const [id, width] of Object.entries(runWidths)) map.setPaintProperty(id, "line-width", gradient.checked ? gradeWidth(width) : width);
   document.querySelector("#gradient-legend").hidden = !gradient.checked;
   document.querySelector("#plain-legend").hidden = gradient.checked || activeMode === "running";
 }
@@ -140,6 +159,7 @@ map.on("error", (event) => {
 function enableControls(enabled) {
   modes.forEach((radio) => { radio.disabled = !enabled; });
   uncertain.disabled = gradient.disabled = opacity.disabled = !enabled;
+  inspectSegment.disabled = !enabled;
 }
 
 function installAppLayers() {
@@ -163,7 +183,7 @@ function installAppLayers() {
   addLayer({ id: "roadbike", type: "line", ...source,
     filter: ["all", osm, ["==", ["get", "status"], "yes"]],
     layout: { "line-join": "round", "line-cap": "round" },
-    paint: { "line-color": gradeExpression(), "line-width": ["interpolate", ["linear"], ["zoom"], 11, 2.5, 16, 6] },
+    paint: { "line-color": gradeExpression(), "line-width": roadbikeGradeWidth() },
   });
   addLayer({ id: "roadbike-check", type: "line", ...source,
     filter: ["all", osm, ["==", ["get", "status"], "review"]],
@@ -192,17 +212,17 @@ function installAppLayers() {
   addLayer({ id: "run-paved", type: "line", ...source,
     filter: ["all", osm, run, ["==", ["get", "run_surface"], "paved"]],
     layout: { visibility: "none", "line-join": "round", "line-cap": "round" },
-    paint: { "line-color": cssColor("--run-paved"), "line-width": 3.5 },
+    paint: { "line-color": cssColor("--run-paved"), "line-width": runWidths["run-paved"] },
   });
   addLayer({ id: "run-unpaved", type: "line", ...source,
     filter: ["all", osm, run, ["==", ["get", "run_surface"], "unpaved"]],
     layout: { visibility: "none", "line-join": "round", "line-cap": "round" },
-    paint: { "line-color": cssColor("--run-unpaved"), "line-width": 3.5, "line-dasharray": [3, 3] },
+    paint: { "line-color": cssColor("--run-unpaved"), "line-width": runWidths["run-unpaved"], "line-dasharray": [3, 3] },
   });
   addLayer({ id: "run-unknown", type: "line", ...source,
     filter: ["all", osm, run, ["==", ["get", "run_surface"], "unknown"]],
     layout: { visibility: "none", "line-join": "round", "line-cap": "round" },
-    paint: { "line-color": cssColor("--run-unknown"), "line-width": 3, "line-dasharray": [1, 1] },
+    paint: { "line-color": cssColor("--run-unknown"), "line-width": runWidths["run-unknown"], "line-dasharray": [1, 1] },
   });
   addLayer({ id: "run-check", type: "line", ...source,
     filter: ["all", osm, ["==", ["get", "foot_status"], "review"]],
@@ -339,6 +359,7 @@ function addOsmPopup(panel, values) {
     tertiary: "Nebenstrasse", trunk: "Übergeordnete Strasse", motorway: "Autobahn",
   };
   const title = document.createElement("h2");
+  title.tabIndex = -1;
   title.textContent = values.name || (Object.hasOwn(wayTypes, tags.highway) ? wayTypes[tags.highway] : "Weg ohne Namen");
   section.append(title);
   const source = document.createElement("p");
@@ -447,12 +468,31 @@ function describeReason(reason) {
   return "";
 }
 
+function openSegmentPopup(feature, lngLat, focusTitle = false) {
+  const panel = document.createElement("div");
+  addOsmPopup(panel, feature.properties);
+  new maplibregl.Popup({ maxWidth: "360px", focusAfterOpen: !focusTitle })
+    .setLngLat(lngLat).setDOMContent(panel).addTo(map);
+  if (focusTitle) panel.querySelector("h2")?.focus();
+}
+
 map.on("click", (event) => {
   if (!map.getLayer("roadbike-hit")) return;
   const p = event.point;
   const feature = map.queryRenderedFeatures([[p.x - 4, p.y - 4], [p.x + 4, p.y + 4]], { layers: ["roadbike-hit"] })[0];
-  if (!feature) return;
-  const panel = document.createElement("div");
-  addOsmPopup(panel, feature.properties);
-  new maplibregl.Popup({ maxWidth: "360px" }).setLngLat(event.lngLat).setDOMContent(panel).addTo(map);
+  if (feature) openSegmentPopup(feature, event.lngLat);
+});
+
+inspectSegment.addEventListener("click", () => {
+  const center = map.project(map.getCenter());
+  const feature = map.queryRenderedFeatures(
+    [[center.x - 12, center.y - 12], [center.x + 12, center.y + 12]],
+    { layers: ["roadbike-hit"] },
+  )[0];
+  if (!feature) {
+    inspectStatus.textContent = "Kein Wegabschnitt in Kartenmitte gefunden. Karte verschieben oder näher heranzoomen und erneut versuchen.";
+    return;
+  }
+  openSegmentPopup(feature, map.getCenter(), true);
+  inspectStatus.textContent = "Wegabschnitt gefunden. Details sind geöffnet.";
 });

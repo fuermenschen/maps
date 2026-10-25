@@ -59,6 +59,8 @@ Open <http://127.0.0.1:8100>. Preview server supports PMTiles byte ranges. Build
 
 Commit both generated files when refreshing map. Raw PBF, GeoPackage, and DTM inputs stay ignored under `gis/input/` and `gis/work/`. Set `QGIS_APP` to another QGIS app bundle if needed; without it, builder looks for `ogr2ogr` on `PATH`.
 
+`method.json` records Python/package, `ogr2ogr`, and PMTiles versions. It fingerprints inputs (`gis/osmconf.ini`, `gis/aoi.json`, Switzerland PBF, roads GeoPackage, DTM VRT and backing files) by path, size, modification time, and SHA-256.
+
 ## Data and method
 
 - AOI: existing bbox `[8.58, 47.38, 8.92, 47.63]`, approximately 25.5 × 27.8 km. Extent intentionally unchanged.
@@ -70,3 +72,5 @@ Commit both generated files when refreshing map. Raw PBF, GeoPackage, and DTM in
 See [`gis/MAP.md`](gis/MAP.md) for map interpretation and access defaults; [`gis/CALIBRATION.md`](gis/CALIBRATION.md) documents the elevation smoothing calibration.
 
 OSM data © contributors, [ODbL](https://www.openstreetmap.org/copyright). Basemap © swisstopo and credited providers. Map does not establish legal access or event permission; verify local signs and conditions before use.
+
+Project-authored code uses GPL-3.0-only (see [`LICENSE`](LICENSE)); OSM, elevation, and basemap data retain their own terms.

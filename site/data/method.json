@@ -1,6 +1,23 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-10-25T17:32:04.794665+00:00",
+  "generated_at": "2026-10-25T19:48:07.724723+00:00",
+  "toolchain": {
+    "python": "3.14.3",
+    "packages": {
+      "geopandas": "1.2.0",
+      "numpy": "2.5.4",
+      "pyogrio": "0.13.0",
+      "pyproj": "3.8.0",
+      "rasterio": "1.5.2",
+      "shapely": "2.2.0",
+      "osmium": "4.3.2",
+      "affine": "2.4.0"
+    },
+    "external_tools": {
+      "ogr2ogr": "GDAL 3.13.3 \"Iowa City\", released 2026/08/13",
+      "pmtiles": "pmtiles dev, commit none, built at unknown"
+    }
+  },
   "area_of_interest": {
     "description": "Current Winterthur-area extent; axis-aligned bounding box",
     "geometry": "axis-aligned bounding box",
@@ -218,7 +235,8 @@
     "mosaic_resolution_m": 5,
     "sample_spacing_m": 5,
     "smoothing_window_m": 10,
-    "grade_method": "For accessible or review features in either view except stairs: bilinear DTM samples, centred 10 m mean smoothing, then endpoint elevation difference over each map segment (at most 100 m). Not a surveyed road/deck grade."
+    "max_segment_length_m": 100,
+    "grade_method": "For accessible or review features in either view except stairs: bilinear DTM samples every 5 m, centred 10 m mean smoothing, then endpoint elevation difference over each map segment (at most 100 m). Not a surveyed road/deck grade."
   },
   "datasets": {
     "used": [
@@ -343,7 +361,7 @@
     "file": "site/data/roads.pmtiles",
     "size_bytes": 37936773,
     "sha256": "ab05ca76310bbb9205df612fa3439d991c413f0612961896dfcdbd8c273b9457",
-    "local_modified_at": "2026-10-25T17:32:04.646968+00:00"
+    "local_modified_at": "2026-10-25T19:48:07.598285+00:00"
   },
   "known_limitations": [
     "A mapped-data planning profile, not legal verification or field survey.",

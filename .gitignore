@@ -1,3 +1,5 @@
 /gis/input/
 /gis/work/
+/site/data/roads.building.pmtiles
+/site/data/method.json.part
 __pycache__/
