@@ -1,12 +1,50 @@
 import * as maplibregl from "https://unpkg.com/maplibre-gl@6.3.0/dist/maplibre-gl.mjs";
 import { Protocol } from "https://unpkg.com/pmtiles@4.5.0/dist/esm/index.js";
+import { makeDarkStyle } from "./dark-style.mjs";
 
 const protocol = new Protocol();
 maplibregl.addProtocol("pmtiles", protocol.tile);
 
+const status = document.querySelector(".status");
+const darkMode = window.matchMedia("(prefers-color-scheme: dark)");
+const basemapStyleUrl = "https://vectortiles.geo.admin.ch/styles/ch.swisstopo.lightbasemap.vt/style.json";
+let basemapStyle;
+try {
+  const response = await fetch(basemapStyleUrl);
+  if (!response.ok) throw new Error(`Basemap style fetch failed: ${response.status}`);
+  basemapStyle = await response.json();
+} catch (error) {
+  console.error(error);
+  status.textContent = "Kartenhintergrund konnte nicht geladen werden.";
+}
+
+const colorCanvas = document.createElement("canvas");
+colorCanvas.width = colorCanvas.height = 1;
+const colorContext = colorCanvas.getContext("2d", { willReadFrequently: true });
+const colorCache = new Map();
+
+function parseColor(value) {
+  if (colorCache.has(value)) return colorCache.get(value);
+  if (!colorContext || !CSS.supports("color", value)) {
+    colorCache.set(value, null);
+    return null;
+  }
+  colorContext.clearRect(0, 0, 1, 1);
+  colorContext.fillStyle = value;
+  colorContext.fillRect(0, 0, 1, 1);
+  const rgba = [...colorContext.getImageData(0, 0, 1, 1).data];
+  colorCache.set(value, rgba);
+  return rgba;
+}
+
+function styleForTheme(dark) {
+  if (!basemapStyle) return basemapStyleUrl;
+  return dark ? makeDarkStyle(basemapStyle, parseColor) : structuredClone(basemapStyle);
+}
+
 export const map = new maplibregl.Map({
   container: "map",
-  style: "https://vectortiles.geo.admin.ch/styles/ch.swisstopo.basemap.vt/style.json",
+  style: styleForTheme(darkMode.matches),
   attributionControl: {
     customAttribution:
       "© EDA, © BAFU, © BABS, © SAC, © Naturfreunde Schweiz, © opentransportdata.swiss",
@@ -21,18 +59,61 @@ map.addControl(
   "bottom-left",
 );
 
-const status = document.querySelector(".status");
 const uncertain = document.querySelector("#uncertain");
 const gradient = document.querySelector("#gradient");
 const opacity = document.querySelector("#basemap-opacity");
 const opacityValue = document.querySelector("#basemap-opacity-value");
 const modes = document.querySelectorAll('input[name="map-mode"]');
-const colour = ["case", ["==", ["get", "grade"], null], "#727b85",
-  ["step", ["abs", ["get", "grade"]], "#15805a", 3, "#8a9a26", 6, "#d88112", 10, "#c44136", 15, "#85268c"]];
 let activeMode = "roadbike";
 let routeSourceLoaded = false;
 let routeSourceFailed = false;
 let basemapFailed = false;
+
+function cssColor(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+function gradeColors() {
+  return ["--grade-0", "--grade-3", "--grade-6", "--grade-10", "--grade-15"].map(cssColor);
+}
+
+function gradeExpression() {
+  const [low, mild, moderate, steep, verySteep] = gradeColors();
+  return ["case", ["==", ["get", "grade"], null], cssColor("--grade-missing"),
+    ["step", ["abs", ["get", "grade"]], low, 3, mild, 6, moderate, 10, steep, 15, verySteep]];
+}
+
+function updateUnclear() {
+  if (!map.getLayer("roadbike-check")) return;
+  map.setPaintProperty("roadbike-check", "line-color", cssColor("--route-uncertain"));
+  map.setPaintProperty("run-check", "line-color", cssColor("--route-uncertain"));
+  map.setLayoutProperty("roadbike-check", "visibility", activeMode === "roadbike" && uncertain.checked ? "visible" : "none");
+  map.setLayoutProperty("run-check", "visibility", activeMode === "running" && uncertain.checked ? "visible" : "none");
+}
+
+function updateGradient() {
+  if (!map.getLayer("roadbike")) return;
+  const graded = gradient.checked ? gradeExpression() : null;
+  map.setPaintProperty("roadbike", "line-color", graded || cssColor("--route-bike"));
+  map.setPaintProperty("run-paved", "line-color", graded || cssColor("--run-paved"));
+  map.setPaintProperty("run-unpaved", "line-color", graded || cssColor("--run-unpaved"));
+  map.setPaintProperty("run-unknown", "line-color", graded || cssColor("--run-unknown"));
+  document.querySelector("#gradient-legend").hidden = !gradient.checked;
+  document.querySelector("#plain-legend").hidden = gradient.checked || activeMode === "running";
+}
+
+function updateMode() {
+  activeMode = document.querySelector('input[name="map-mode"]:checked').value;
+  if (!map.getLayer("roadbike")) return;
+  const running = activeMode === "running";
+  for (const id of ["roadbike", "roadbike-direction"]) map.setLayoutProperty(id, "visibility", running ? "none" : "visible");
+  for (const id of ["run-paved", "run-unpaved", "run-unknown"]) map.setLayoutProperty(id, "visibility", running ? "visible" : "none");
+  document.querySelector("#roadbike-legend").hidden = running;
+  document.querySelector("#running-legend").hidden = !running;
+  updateUnclear();
+  updateGradient();
+  updateStatus();
+}
 
 function updateStatus() {
   if (routeSourceFailed && basemapFailed) status.textContent = "Kartenhintergrund und Routendaten konnten nicht geladen werden.";
@@ -56,32 +137,40 @@ map.on("error", (event) => {
   updateStatus();
 });
 
-map.on("load", () => {
-  map.addSource("roads", {
+function enableControls(enabled) {
+  modes.forEach((radio) => { radio.disabled = !enabled; });
+  uncertain.disabled = gradient.disabled = opacity.disabled = !enabled;
+}
+
+function installAppLayers() {
+  basemapFailed = false;
+  if (!map.getSource("roads")) map.addSource("roads", {
     type: "vector",
     url: `pmtiles://${new URL("./data/roads.pmtiles", import.meta.url).href}`,
     attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
   });
-  map.addSource("basemap-fade", { type: "geojson", data: {
+  if (!map.getSource("basemap-fade")) map.addSource("basemap-fade", { type: "geojson", data: {
     type: "Feature", properties: {},
     geometry: { type: "Polygon", coordinates: [[[-180, -85], [180, -85], [180, 85], [-180, 85], [-180, -85]]] },
   } });
-  map.addLayer({ id: "basemap-fade", type: "fill", source: "basemap-fade",
-    paint: { "fill-color": "#f7f7f2", "fill-opacity": 0 },
+  const addLayer = (layer) => { if (!map.getLayer(layer.id)) map.addLayer(layer); };
+  addLayer({ id: "basemap-fade", type: "fill", source: "basemap-fade",
+    paint: { "fill-color": cssColor("--basemap-fade"), "fill-opacity": 1 - Number(opacity.value) / 100 },
   });
+  map.setPaintProperty("basemap-fade", "fill-color", cssColor("--basemap-fade"));
   const source = { source: "roads", "source-layer": "roads", minzoom: 11 };
   const osm = ["==", ["get", "kind"], "osm"];
-  map.addLayer({ id: "roadbike", type: "line", ...source,
+  addLayer({ id: "roadbike", type: "line", ...source,
     filter: ["all", osm, ["==", ["get", "status"], "yes"]],
     layout: { "line-join": "round", "line-cap": "round" },
-    paint: { "line-color": colour, "line-width": ["interpolate", ["linear"], ["zoom"], 11, 2.5, 16, 6] },
+    paint: { "line-color": gradeExpression(), "line-width": ["interpolate", ["linear"], ["zoom"], 11, 2.5, 16, 6] },
   });
-  map.addLayer({ id: "roadbike-check", type: "line", ...source,
+  addLayer({ id: "roadbike-check", type: "line", ...source,
     filter: ["all", osm, ["==", ["get", "status"], "review"]],
     layout: { visibility: "none" },
-    paint: { "line-color": "#666", "line-width": 2.5, "line-dasharray": [2, 2] },
+    paint: { "line-color": cssColor("--route-uncertain"), "line-width": 2.5, "line-dasharray": [2, 2] },
   });
-  map.addLayer({ id: "roadbike-hit", type: "line", ...source,
+  addLayer({ id: "roadbike-hit", type: "line", ...source,
     filter: osm,
     paint: { "line-color": "#000", "line-opacity": 0, "line-width": 16 },
   });
@@ -92,74 +181,52 @@ map.on("load", () => {
   context.beginPath(); context.moveTo(8, 5); context.lineTo(16, 12); context.lineTo(8, 19);
   context.lineWidth = 6; context.strokeStyle = "white"; context.stroke();
   context.lineWidth = 3; context.strokeStyle = "#1b2921"; context.stroke();
-  map.addImage("bike-direction", context.getImageData(0, 0, 24, 24));
-  map.addLayer({ id: "roadbike-direction", type: "symbol", ...source, minzoom: 14,
+  if (!map.hasImage("bike-direction")) map.addImage("bike-direction", context.getImageData(0, 0, 24, 24));
+  addLayer({ id: "roadbike-direction", type: "symbol", ...source, minzoom: 14,
     filter: ["all", osm, ["==", ["get", "status"], "yes"], ["in", ["get", "direction"], ["literal", ["forward", "reverse"]]]],
     layout: { "symbol-placement": "line", "symbol-spacing": 120,
        "icon-image": "bike-direction", "icon-size": .65, "icon-rotation-alignment": "map",
        "icon-keep-upright": false, "icon-rotate": ["case", ["==", ["get", "direction"], "reverse"], 180, 0] },
   });
   const run = ["==", ["get", "foot_status"], "yes"];
-  map.addLayer({ id: "run-paved", type: "line", ...source,
+  addLayer({ id: "run-paved", type: "line", ...source,
     filter: ["all", osm, run, ["==", ["get", "run_surface"], "paved"]],
     layout: { visibility: "none", "line-join": "round", "line-cap": "round" },
-    paint: { "line-color": "#2d6c89", "line-width": 3.5 },
+    paint: { "line-color": cssColor("--run-paved"), "line-width": 3.5 },
   });
-  map.addLayer({ id: "run-unpaved", type: "line", ...source,
+  addLayer({ id: "run-unpaved", type: "line", ...source,
     filter: ["all", osm, run, ["==", ["get", "run_surface"], "unpaved"]],
     layout: { visibility: "none", "line-join": "round", "line-cap": "round" },
-    paint: { "line-color": "#a65b18", "line-width": 3.5, "line-dasharray": [3, 3] },
+    paint: { "line-color": cssColor("--run-unpaved"), "line-width": 3.5, "line-dasharray": [3, 3] },
   });
-  map.addLayer({ id: "run-unknown", type: "line", ...source,
+  addLayer({ id: "run-unknown", type: "line", ...source,
     filter: ["all", osm, run, ["==", ["get", "run_surface"], "unknown"]],
     layout: { visibility: "none", "line-join": "round", "line-cap": "round" },
-    paint: { "line-color": "#727b85", "line-width": 3, "line-dasharray": [1, 1] },
+    paint: { "line-color": cssColor("--run-unknown"), "line-width": 3, "line-dasharray": [1, 1] },
   });
-  map.addLayer({ id: "run-check", type: "line", ...source,
+  addLayer({ id: "run-check", type: "line", ...source,
     filter: ["all", osm, ["==", ["get", "foot_status"], "review"]],
     layout: { visibility: "none", "line-join": "round", "line-cap": "round" },
-    paint: { "line-color": "#666", "line-width": 2.5, "line-dasharray": [2, 2] },
-  });
-  const updateUnclear = () => {
-    map.setLayoutProperty("roadbike-check", "visibility", activeMode === "roadbike" && uncertain.checked ? "visible" : "none");
-    map.setLayoutProperty("run-check", "visibility", activeMode === "running" && uncertain.checked ? "visible" : "none");
-  };
-  const updateGradient = () => {
-    const graded = gradient.checked ? colour : null;
-    map.setPaintProperty("roadbike", "line-color", graded || "#15805a");
-    map.setPaintProperty("run-paved", "line-color", graded || "#2d6c89");
-    map.setPaintProperty("run-unpaved", "line-color", graded || "#a65b18");
-    map.setPaintProperty("run-unknown", "line-color", graded || "#727b85");
-    document.querySelector("#gradient-legend").hidden = !gradient.checked;
-    document.querySelector("#plain-legend").hidden = gradient.checked || activeMode === "running";
-  };
-  const updateMode = () => {
-    activeMode = document.querySelector('input[name="map-mode"]:checked').value;
-    const running = activeMode === "running";
-    for (const id of ["roadbike", "roadbike-direction"]) map.setLayoutProperty(id, "visibility", running ? "none" : "visible");
-    for (const id of ["run-paved", "run-unpaved", "run-unknown"]) map.setLayoutProperty(id, "visibility", running ? "visible" : "none");
-    document.querySelector("#roadbike-legend").hidden = running;
-    document.querySelector("#running-legend").hidden = !running;
-    updateUnclear();
-    updateGradient();
-    updateStatus();
-  };
-  modes.forEach((radio) => radio.addEventListener("change", updateMode));
-  uncertain.addEventListener("change", () => {
-    updateUnclear();
-  });
-  gradient.addEventListener("change", () => {
-    updateGradient();
-  });
-  opacity.addEventListener("input", () => {
-    const value = Number(opacity.value);
-    opacityValue.value = `${value}%`;
-    map.setPaintProperty("basemap-fade", "fill-opacity", 1 - value / 100);
+    paint: { "line-color": cssColor("--route-uncertain"), "line-width": 2.5, "line-dasharray": [2, 2] },
   });
   updateMode();
-  modes.forEach((radio) => { radio.disabled = false; });
-  uncertain.disabled = gradient.disabled = false;
-  opacity.disabled = false;
+  enableControls(true);
+  updateStatus();
+}
+
+map.on("style.load", installAppLayers);
+modes.forEach((radio) => radio.addEventListener("change", updateMode));
+uncertain.addEventListener("change", updateUnclear);
+gradient.addEventListener("change", updateGradient);
+opacity.addEventListener("input", () => {
+  const value = Number(opacity.value);
+  opacityValue.value = `${value}%`;
+  if (map.getLayer("basemap-fade")) map.setPaintProperty("basemap-fade", "fill-opacity", 1 - value / 100);
+});
+darkMode.addEventListener("change", (event) => {
+  if (!basemapStyle) return;
+  enableControls(false);
+  map.setStyle(styleForTheme(event.matches));
 });
 
 function parseJson(value, fallback) {

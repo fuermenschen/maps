@@ -3,7 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#f7f7f2" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#151a20" media="(prefers-color-scheme: dark)" />
     <meta
       name="description"
       content="Routenkarte für Rennvelo- und Laufstrecken in Winterthur."
@@ -50,12 +51,12 @@
             <summary>Farben: Steigung und Gefälle</summary>
             <strong>Steigung oder Gefälle</strong>
             <div class="legend" aria-label="Steigung oder Gefälle in Prozent">
-              <span><i style="background:#15805a"></i>0 bis &lt;3 %</span>
-              <span><i style="background:#8a9a26"></i>3 bis &lt;6 %</span>
-              <span><i style="background:#d88112"></i>6 bis &lt;10 %</span>
-              <span><i style="background:#c44136"></i>10 bis &lt;15 %</span>
-              <span><i style="background:#85268c"></i>ab 15 %</span>
-              <span><i style="background:#727b85"></i>Keine verlässliche Höhe</span>
+              <span><i class="grade-0"></i>0 bis &lt;3 %</span>
+              <span><i class="grade-3"></i>3 bis &lt;6 %</span>
+              <span><i class="grade-6"></i>6 bis &lt;10 %</span>
+              <span><i class="grade-10"></i>10 bis &lt;15 %</span>
+              <span><i class="grade-15"></i>ab 15 %</span>
+              <span><i class="grade-missing"></i>Keine verlässliche Höhe</span>
             </div>
             <p>Durchschnittliche Steigung oder Gefälle auf Abschnitten bis 100 m; kein punktueller Höchstwert.</p>
           </details>
