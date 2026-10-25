@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f7f7f2" />
+    <meta
+      name="description"
+      content="Routenkarte für Rennvelo- und Laufstrecken in Winterthur."
+    />
+    <title>HFM Routenkarte · Winterthur</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/maplibre-gl@6.3.0/dist/maplibre-gl.css"
+    />
+    <link rel="stylesheet" href="./style.css" />
+    <script type="module" src="./app.js"></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div>
+        <p class="eyebrow">Höhenmeter für Menschen · Winterthur</p>
+        <h1>Routenkarte</h1>
+      </div>
+      <p class="status" role="status" aria-live="polite">
+        Streckendaten werden vorbereitet.
+      </p>
+    </header>
+    <main id="map" aria-label="Karte von Winterthur und Umgebung"></main>
+  </body>
+</html>
