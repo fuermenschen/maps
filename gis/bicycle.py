@@ -6,9 +6,21 @@ UNPAVED = {"unpaved", "compacted", "fine_gravel", "gravel", "pebblestone", "grou
            "dirt", "earth", "grass", "sand", "mud", "woodchips", "grass_paver"}
 ORDINARY = {"primary", "primary_link", "secondary", "secondary_link", "tertiary",
             "tertiary_link", "unclassified", "residential", "living_street", "service"}
-ALLOWED = {"yes", "designated", "official", "permissive", "discouraged"}
+ALLOWED = {"yes", "designated", "official", "permissive"}
 BLOCKED = {"no", "private", "destination", "customers", "delivery", "forestry",
            "agricultural", "permit", "dismount", "use_sidepath"}
+TAG_KEYS = {
+    "highway", "name", "ref", "service", "surface", "smoothness", "tracktype", "incline",
+    "step_count", "ramp", "handrail", "conveying", "barrier", "locked", "motorroad",
+    "bridge", "tunnel", "layer", "junction", "lit",
+}
+TAG_PREFIXES = ("access", "bicycle", "vehicle", "motor_vehicle", "motorcar", "foot",
+                "oneway", "cycleway", "step", "ramp", "handrail")
+
+
+def source_tags(tags):
+    return {key: value for key, value in tags.items()
+            if key in TAG_KEYS or any(key.startswith(prefix + ":") for prefix in TAG_PREFIXES)}
 
 
 def permission(tags, side, default="review"):
@@ -46,9 +58,15 @@ def bicycle_direction(tags):
 
 def assess(tags):
     highway = tags.get("highway", "")
-    if highway in {"motorway", "motorway_link", "trunk", "trunk_link", "construction", "proposed", "steps"} or tags.get("motorroad") == "yes":
-        return "no", "none", "Nicht für Rennvelo befahrbar"
+    if highway in {"motorway", "motorway_link"} or tags.get("motorroad") == "yes":
+        return "no", "none", "Autobahn/Autostrasse gemäss OSM-Markierung"
+    if highway == "steps":
+        return "no", "none", "Treppe – nicht als Rennvelo-Abschnitt gewertet"
+    if highway in {"construction", "proposed"}:
+        return "no", "none", "Bau oder Planung – kein bestehender Fahrweg"
     default = "yes" if highway in ORDINARY | {"cycleway", "path", "track"} else "no" if highway in {"footway", "pedestrian", "bridleway"} else "review"
+    if highway in {"trunk", "trunk_link"}:
+        default = "review"
     forward, why_forward = permission(tags, "forward", default)
     backward, why_backward = permission(tags, "backward", default)
     direction = bicycle_direction(tags)
@@ -68,6 +86,10 @@ def assess(tags):
     reasons = []
     if surface not in PAVED:
         reasons.append("Belag nicht ausreichend erfasst")
+    if highway in {"trunk", "trunk_link"} and not any(
+        tags.get(key) in ALLOWED for key in ("bicycle", "bicycle:forward", "bicycle:backward")
+    ):
+        reasons.append("Velofreigabe bei highway=trunk lokal prüfen")
     if "review" in (forward, backward):
         reasons.append("Zugang oder Fahrtrichtung prüfen: " + why_forward + "; " + why_backward)
     if tags.get("barrier") not in {None, "no", "bollard", "entrance"}:
@@ -100,6 +122,10 @@ def check():
     assert assess(paved | {"oneway": "yes", "bicycle:backward": "yes"})[1] == "both"
     assert assess(paved | {"oneway": "yes", "bicycle:backward:conditional": "yes @ (Su)"})[0] == "review"
     assert assess(paved | {"surface": "cobblestone"})[0] == "yes"
+    assert assess(paved | {"bicycle": "discouraged"})[0] == "review"
+    assert assess(paved | {"highway": "trunk"})[0] == "review"
+    assert assess(paved | {"highway": "trunk", "bicycle": "yes"})[0] == "yes"
+    assert assess(paved | {"highway": "trunk", "motorroad": "yes"})[0] == "no"
     assert assess(paved | {"highway": "steps"})[0] == "no"
     assert assess(paved | {"highway": "motorway"})[0] == "no"
     assert assess(paved | {"highway": "footway"})[0] == "no"
@@ -112,6 +138,10 @@ def check():
     assert obstacle({"barrier": "bollard", "motor_vehicle": "no"})[0] == "yes"
     assert obstacle({"barrier": "gate", "bicycle": "yes"})[0] == "review"
     assert obstacle({"bicycle": "no"})[0] == "no"
+    assert source_tags({"highway": "steps", "surface": "asphalt", "step_count": "4",
+                        "bicycle:conditional": "no @ (Su)", "unrelated": "x"}) == {
+                            "highway": "steps", "surface": "asphalt", "step_count": "4",
+                            "bicycle:conditional": "no @ (Su)"}
     print("Bicycle-access checks passed")
 
 

@@ -89,6 +89,12 @@ h1 {
 .legend-dashed { border-top: 3px dashed #666; }
 .legend-arrow { display: inline-block; width: 24px; text-align: center; font-size: 1.2rem; color: #1b2921; }
 .maplibregl-popup-content p { margin: .4rem 0; }
+.maplibregl-popup-content details { margin-top: .5rem; }
+.maplibregl-popup-content summary { cursor: pointer; font-weight: 650; }
+.maplibregl-popup-content dl { display: grid; grid-template-columns: max-content 1fr; gap: .15rem .5rem; }
+.maplibregl-popup-content dt { font-weight: 650; }
+.maplibregl-popup-content dd { margin: 0; overflow-wrap: anywhere; }
+.maplibregl-popup-content hr { border: 0; border-top: 1px solid #d9dfdc; margin: .65rem 0; }
 
 @media (max-width: 600px) {
   .map-tools { top: 105px; max-width: 250px; max-height: 45dvh; padding: .6rem; }
