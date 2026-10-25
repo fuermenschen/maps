@@ -1,0 +1,351 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-10-25T16:26:11.232203+00:00",
+  "area_of_interest": {
+    "description": "Current Winterthur-area extent; axis-aligned bounding box",
+    "geometry": "axis-aligned bounding box",
+    "bounds_wgs84": [
+      8.58,
+      47.38,
+      8.92,
+      47.63
+    ],
+    "approx_size_km": [
+      25.5,
+      27.8
+    ],
+    "bounds_lv95": [
+      2685786.775868835,
+      1248311.6211950728,
+      2711863.5386439487,
+      1276532.5221344142
+    ]
+  },
+  "osm": {
+    "source": "Geofabrik Switzerland extract",
+    "source_url": "https://download.geofabrik.de/europe/switzerland.html",
+    "snapshot_at": "2026-10-24T20:20:51Z",
+    "generator": "osmium/1.16.0",
+    "extract_config": {
+      "all_tags": true,
+      "ignored_tag_keys": [
+        "created_by",
+        "converted_by",
+        "source",
+        "time",
+        "ele",
+        "note",
+        "todo",
+        "openGeoDB:",
+        "fixme",
+        "FIXME"
+      ]
+    },
+    "popup_tag_keys": {
+      "exact": [
+        "barrier",
+        "bridge",
+        "conveying",
+        "handrail",
+        "highway",
+        "incline",
+        "junction",
+        "layer",
+        "lit",
+        "locked",
+        "motorroad",
+        "name",
+        "ramp",
+        "ref",
+        "service",
+        "smoothness",
+        "step_count",
+        "surface",
+        "tracktype",
+        "tunnel"
+      ],
+      "prefixes": [
+        "access",
+        "bicycle",
+        "cycleway",
+        "foot",
+        "handrail",
+        "motor_vehicle",
+        "motorcar",
+        "oneway",
+        "ramp",
+        "step",
+        "vehicle"
+      ]
+    },
+    "roadbike_defaults": {
+      "ordinary_access_yes": [
+        "cycleway",
+        "living_street",
+        "path",
+        "primary",
+        "primary_link",
+        "residential",
+        "secondary",
+        "secondary_link",
+        "service",
+        "tertiary",
+        "tertiary_link",
+        "track",
+        "unclassified"
+      ],
+      "bicycle_permission_required": [
+        "footway",
+        "pedestrian",
+        "bridleway"
+      ],
+      "review_highway": [
+        "trunk",
+        "trunk_link",
+        "other unclassified highway types"
+      ],
+      "excluded_highway": [
+        "motorway",
+        "motorway_link",
+        "construction",
+        "proposed",
+        "steps"
+      ],
+      "explicit_allowed_values": [
+        "designated",
+        "official",
+        "permissive",
+        "yes"
+      ],
+      "excluded_access_values": [
+        "agricultural",
+        "customers",
+        "delivery",
+        "destination",
+        "dismount",
+        "forestry",
+        "no",
+        "permit",
+        "private",
+        "use_sidepath"
+      ],
+      "motorroad_yes": "excluded; motor_vehicle=no alone does not deny bicycle access",
+      "conditional_rules": "not evaluated; effective conditional access or direction remains review",
+      "surface_paved": [
+        "asphalt",
+        "cobblestone",
+        "concrete",
+        "concrete:lanes",
+        "concrete:plates",
+        "paved",
+        "paving_stones",
+        "sett",
+        "unhewn_cobblestone"
+      ],
+      "surface_unpaved": [
+        "compacted",
+        "dirt",
+        "earth",
+        "fine_gravel",
+        "grass",
+        "grass_paver",
+        "gravel",
+        "ground",
+        "mud",
+        "pebblestone",
+        "sand",
+        "unpaved",
+        "woodchips"
+      ]
+    },
+    "running_defaults": {
+      "foot_access_yes": [
+        "bridleway",
+        "footway",
+        "living_street",
+        "path",
+        "pedestrian",
+        "platform",
+        "primary",
+        "primary_link",
+        "residential",
+        "secondary",
+        "secondary_link",
+        "service",
+        "steps",
+        "tertiary",
+        "tertiary_link",
+        "track",
+        "unclassified"
+      ],
+      "explicit_allowed_values": [
+        "designated",
+        "official",
+        "permissive",
+        "yes"
+      ],
+      "excluded_access_values": [
+        "agricultural",
+        "customers",
+        "delivery",
+        "destination",
+        "forestry",
+        "no",
+        "permit",
+        "private",
+        "use_sidepath"
+      ],
+      "trunk_or_cycleway_without_foot_permission": "review",
+      "surface_classes": [
+        "paved",
+        "unpaved",
+        "unknown"
+      ],
+      "score": null
+    }
+  },
+  "elevation": {
+    "source": "Kanton Zürich DTM WCS",
+    "source_url": "https://wms.zh.ch/DEMWCS",
+    "coverage_id": "dtm_5m_52764d7d76",
+    "product_survey_epoch": "2021/22",
+    "product_metadata_resolution_m": 0.25,
+    "wcs_coverage_advertised_resolution_m": 0.5,
+    "mosaic_resolution_m": 5,
+    "sample_spacing_m": 5,
+    "smoothing_window_m": 10,
+    "grade_method": "For accessible or review features in either view except stairs: bilinear DTM samples, centred 10 m mean smoothing, then endpoint elevation difference over each map segment (at most 100 m). Not a surveyed road/deck grade."
+  },
+  "datasets": {
+    "used": [
+      "OpenStreetMap road/access data within configured bbox",
+      "Kanton Zürich DTM WCS"
+    ],
+    "downloaded_not_used": [
+      {
+        "name": "Kanton Zürich Veloinfrastruktur",
+        "source_url": "https://maps.zh.ch/wfs/VeloinfrastrukturZHWFS",
+        "cached_files": [
+          "gis/input/velo_radwege.geojson",
+          "gis/input/velo_radstreifen.geojson"
+        ],
+        "reason": "Not included in published map."
+      }
+    ],
+    "not_downloaded_or_used": [
+      "swissTLM3D"
+    ]
+  },
+  "files": [
+    {
+      "file": "gis/osmconf.ini",
+      "size_bytes": 542,
+      "sha256": "67b6fb93d8f9e78bb3b446e10c4b5131e8a77788c4c2319d93964cc198f544c4",
+      "local_modified_at": "2026-10-25T11:34:46.307984+00:00"
+    },
+    {
+      "file": "gis/aoi.json",
+      "size_bytes": 184,
+      "sha256": "7fb27a1caf2481a838f149cc278892552c9d52d2b5afe60b0fff43ed38eced58",
+      "local_modified_at": "2026-10-25T16:07:07.718759+00:00"
+    },
+    {
+      "file": "gis/input/switzerland-latest.osm.pbf",
+      "size_bytes": 549162217,
+      "sha256": "fec1381214829470ead9d06cfde4dc5597be3d23a404a04a8bdf37ab7656d9f7",
+      "local_modified_at": "2026-10-25T11:36:55.926380+00:00"
+    },
+    {
+      "file": "gis/work/osm_roads.gpkg",
+      "size_bytes": 39219200,
+      "sha256": "af935e78e7c56275f39ee20c5130ada7a735e3e403df99ec504a32211c58be0d",
+      "local_modified_at": "2026-10-25T11:42:36.250602+00:00"
+    },
+    {
+      "file": "gis/input/dtm_5m_52764d7d76.vrt",
+      "size_bytes": 5339,
+      "sha256": "f724d3814cf275acaeae3b85109ec4273a931011b18bd999db3b6d8f907f4226",
+      "local_modified_at": "2026-10-25T11:43:53.221179+00:00"
+    },
+    {
+      "file": "gis/input/dtm_5m_52764d7d76_r0_c0.tif",
+      "size_bytes": 16644017,
+      "sha256": "0e272459eebaddf1aced2cc1098a02809c43900d1d844381dc052487d668ce81",
+      "local_modified_at": "2026-10-25T11:40:54.036932+00:00"
+    },
+    {
+      "file": "gis/input/dtm_5m_52764d7d76_r0_c1.tif",
+      "size_bytes": 16982282,
+      "sha256": "d005eeeb3638df570466a0ac1771819c15fbaaf16f872b7eed5f6ad362e85244",
+      "local_modified_at": "2026-10-25T11:40:56.274656+00:00"
+    },
+    {
+      "file": "gis/input/dtm_5m_52764d7d76_r0_c2.tif",
+      "size_bytes": 8963928,
+      "sha256": "504109b3103028ba7057cd25baece6897a5a1b2cd8d3071d6372709b3d0d576d",
+      "local_modified_at": "2026-10-25T11:40:57.408880+00:00"
+    },
+    {
+      "file": "gis/input/dtm_5m_52764d7d76_r1_c0.tif",
+      "size_bytes": 17156393,
+      "sha256": "f03e2e0708628ce0277d21f0c78a4afb818abcb44586325b89e7a25e4ceb2ef9",
+      "local_modified_at": "2026-10-25T11:40:59.495743+00:00"
+    },
+    {
+      "file": "gis/input/dtm_5m_52764d7d76_r1_c1.tif",
+      "size_bytes": 16681089,
+      "sha256": "fa827415f7b6fbc56c61d40e5fb4f7c01f137fa9dd8d9679e72013952904cf5d",
+      "local_modified_at": "2026-10-25T11:41:01.628875+00:00"
+    },
+    {
+      "file": "gis/input/dtm_5m_52764d7d76_r1_c2.tif",
+      "size_bytes": 4816755,
+      "sha256": "0c255cbc46787263537822972780f1e837912998d028797e38b5a1ab328a2f2f",
+      "local_modified_at": "2026-10-25T11:41:02.335554+00:00"
+    },
+    {
+      "file": "gis/input/dtm_5m_52764d7d76_r2_c0.tif",
+      "size_bytes": 11996774,
+      "sha256": "e8e119f55c93ea863256742c5047da4e60e737578e6cb83a67ab9ec584846eb4",
+      "local_modified_at": "2026-10-25T11:41:03.919646+00:00"
+    },
+    {
+      "file": "gis/input/dtm_5m_52764d7d76_r2_c1.tif",
+      "size_bytes": 9195738,
+      "sha256": "aadbcb66c7a40b4414c8b49d90719fc1fabe1dbf4259864f92bf8fd24764e405",
+      "local_modified_at": "2026-10-25T11:41:05.236568+00:00"
+    },
+    {
+      "file": "gis/input/dtm_5m_52764d7d76_r2_c2.tif",
+      "size_bytes": 388737,
+      "sha256": "4eac4dc39b1e93f3a617542cc05e997178b92a84cf125230345fdfbedd481afc",
+      "local_modified_at": "2026-10-25T11:41:05.453883+00:00"
+    }
+  ],
+  "feature_counts": {
+    "total": 173690,
+    "roadbike_status": {
+      "yes": 45141,
+      "no": 85872,
+      "review": 42677
+    },
+    "running_foot_access": {
+      "yes": 162242,
+      "no": 10519,
+      "review": 929
+    }
+  },
+  "output": {
+    "file": "site/data/roads.pmtiles",
+    "size_bytes": 37030445,
+    "sha256": "a55e5bdc8d5bdf2d3df0ec1a55ec4a9287dbb27aa22eb755a9408c44a3b2e4ad",
+    "local_modified_at": "2026-10-25T16:26:11.054452+00:00"
+  },
+  "known_limitations": [
+    "A mapped-data planning profile, not legal verification or field survey.",
+    "Conditional access is not evaluated; unknown tags remain review cases.",
+    "Barrier data is incomplete; only explicitly tagged nodes with exact way membership are considered.",
+    "Missing surfaces, bridge decks, and tunnel grades are not inferred.",
+    "Running view shows foot-accessible OSM network and mapped surface class; no running score or route legality."
+  ]
+}

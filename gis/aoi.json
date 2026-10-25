@@ -1,5 +1,6 @@
 {
-  "description": "Winterthur plus approximate 5 km buffer",
+  "description": "Current Winterthur-area extent; axis-aligned bounding box",
   "wgs84_bbox": [8.58, 47.38, 8.92, 47.63],
+  "approx_size_km": [25.5, 27.8],
   "dtm_resolution_m": 5
 }

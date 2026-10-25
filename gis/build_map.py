@@ -6,6 +6,7 @@
 import argparse
 from collections import Counter
 from datetime import datetime, timezone
+import hashlib
 import json
 import math
 import os
@@ -21,7 +22,8 @@ import rasterio
 from shapely import Point, line_interpolate_point
 from shapely.ops import substring
 
-from bicycle import assess, obstacle, check, source_tags
+from bicycle import ALLOWED, BLOCKED, ORDINARY, PAVED, UNPAVED, TAG_KEYS, TAG_PREFIXES, assess, obstacle, check, source_tags
+from running import ALLOWED as FOOT_ALLOWED, BLOCKED as FOOT_BLOCKED, FOOT_DEFAULT_YES, assess as assess_foot, check as check_foot
 
 GIS = Path(__file__).resolve().parent
 
@@ -79,12 +81,111 @@ def sample_profile(line, data, transform):
     return xs, np.array([np.mean(heights[a:b]) for a, b in zip(left, right)])
 
 
+def needs_grade(roadbike_status, foot_status, highway):
+    return highway != "steps" and (roadbike_status != "no" or foot_status != "no")
+
+
+def file_metadata(path):
+    path = Path(path).resolve()
+    stat = path.stat()
+    with path.open("rb") as stream:
+        digest = hashlib.file_digest(stream, "sha256").hexdigest()
+    return {"file": path.relative_to(GIS.parent).as_posix(), "size_bytes": stat.st_size,
+            "sha256": digest,
+            "local_modified_at": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat()}
+
+
+def method_metadata(pbf, roads_file, dtm_files, osm_header, counts, foot_counts, archive):
+    tags = json.loads((GIS / "aoi.json").read_text())
+    west, south, east, north = tags["wgs84_bbox"]
+    corners = [Transformer.from_crs(4326, 2056, always_xy=True).transform(lon, lat)
+               for lon, lat in ((west, south), (west, north), (east, south), (east, north))]
+    source_files = [GIS / "osmconf.ini", GIS / "aoi.json", pbf, roads_file, *dtm_files]
+    source_files = list(dict.fromkeys(Path(path).resolve() for path in source_files))
+    dtm_vrt = next(Path(path) for path in dtm_files if Path(path).suffix.lower() == ".vrt")
+    return {
+        "schema_version": 1,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "area_of_interest": {
+            "description": tags["description"], "geometry": "axis-aligned bounding box",
+            "bounds_wgs84": [west, south, east, north],
+            "approx_size_km": tags["approx_size_km"],
+            "bounds_lv95": [min(x for x, _ in corners), min(y for _, y in corners),
+                            max(x for x, _ in corners), max(y for _, y in corners)],
+        },
+        "osm": {
+            "source": "Geofabrik Switzerland extract",
+            "source_url": "https://download.geofabrik.de/europe/switzerland.html",
+            "snapshot_at": osm_header.get("osmosis_replication_timestamp"),
+            "generator": osm_header.get("generator"),
+            "extract_config": {"all_tags": True, "ignored_tag_keys": ["created_by", "converted_by", "source", "time", "ele", "note", "todo", "openGeoDB:", "fixme", "FIXME"]},
+            "popup_tag_keys": {"exact": sorted(TAG_KEYS), "prefixes": sorted(TAG_PREFIXES)},
+            "roadbike_defaults": {
+                "ordinary_access_yes": sorted(ORDINARY | {"cycleway", "path", "track"}),
+                "bicycle_permission_required": ["footway", "pedestrian", "bridleway"],
+                "review_highway": ["trunk", "trunk_link", "other unclassified highway types"],
+                "excluded_highway": ["motorway", "motorway_link", "construction", "proposed", "steps"],
+                "explicit_allowed_values": sorted(ALLOWED), "excluded_access_values": sorted(BLOCKED),
+                "motorroad_yes": "excluded; motor_vehicle=no alone does not deny bicycle access",
+                "conditional_rules": "not evaluated; effective conditional access or direction remains review",
+                "surface_paved": sorted(PAVED), "surface_unpaved": sorted(UNPAVED),
+            },
+            "running_defaults": {
+                "foot_access_yes": sorted(FOOT_DEFAULT_YES),
+                "explicit_allowed_values": sorted(FOOT_ALLOWED),
+                "excluded_access_values": sorted(FOOT_BLOCKED),
+                "trunk_or_cycleway_without_foot_permission": "review",
+                "surface_classes": ["paved", "unpaved", "unknown"],
+                "score": None,
+            },
+        },
+        "elevation": {
+            "source": "Kanton Zürich DTM WCS",
+            "source_url": "https://wms.zh.ch/DEMWCS",
+            "coverage_id": dtm_vrt.stem,
+            "product_survey_epoch": "2021/22",
+            "product_metadata_resolution_m": 0.25,
+            "wcs_coverage_advertised_resolution_m": 0.5,
+            "mosaic_resolution_m": tags["dtm_resolution_m"],
+            "sample_spacing_m": 5,
+            "smoothing_window_m": 10,
+            "grade_method": "For accessible or review features in either view except stairs: bilinear DTM samples, centred 10 m mean smoothing, then endpoint elevation difference over each map segment (at most 100 m). Not a surveyed road/deck grade.",
+        },
+        "datasets": {
+            "used": ["OpenStreetMap road/access data within configured bbox", "Kanton Zürich DTM WCS"],
+            "downloaded_not_used": [{
+                "name": "Kanton Zürich Veloinfrastruktur",
+                "source_url": "https://maps.zh.ch/wfs/VeloinfrastrukturZHWFS",
+                "cached_files": ["gis/input/velo_radwege.geojson", "gis/input/velo_radstreifen.geojson"],
+                "reason": "Not included in published map.",
+            }],
+            "not_downloaded_or_used": ["swissTLM3D"],
+        },
+        "files": [file_metadata(path) for path in source_files],
+        "feature_counts": {"total": sum(counts.values()), "roadbike_status": dict(counts),
+                            "running_foot_access": dict(foot_counts)},
+        "output": file_metadata(archive),
+        "known_limitations": [
+            "A mapped-data planning profile, not legal verification or field survey.",
+            "Conditional access is not evaluated; unknown tags remain review cases.",
+            "Barrier data is incomplete; only explicitly tagged nodes with exact way membership are considered.",
+            "Missing surfaces, bridge decks, and tunnel grades are not inferred.",
+            "Running view shows foot-accessible OSM network and mapped surface class; no running score or route legality.",
+        ],
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
     if args.self_test:
         check()
+        check_foot()
+        assert needs_grade("no", "yes", "footway")
+        assert needs_grade("yes", "no", "residential")
+        assert not needs_grade("no", "no", "footway")
+        assert not needs_grade("no", "yes", "steps")
         # Linear plane and nodata regression for bilinear sampling.
         from affine import Affine
         from shapely import LineString
@@ -98,9 +199,14 @@ def main():
     roads = gpd.read_file(GIS / "work/osm_roads.gpkg", layer="osm_roads").explode(ignore_index=True)
     if roads.crs.to_epsg() != 2056: raise ValueError("Expected LV95 OSM input")
     bbox = json.loads((GIS / "aoi.json").read_text())["wgs84_bbox"]
+    pbf = GIS / "input/switzerland-latest.osm.pbf"
+    reader = osmium.io.Reader(str(pbf))
+    osm_header = reader.header()
+    osm_header = {key: osm_header.get(key) for key in ("osmosis_replication_timestamp", "generator")}
+    reader.close()
     handler = Obstacles(set(int(i) for i in roads.osm_id), bbox)
     print("Reading tagged barrier nodes and selected OSM ways from cached PBF", flush=True)
-    handler.apply_file(str(GIS / "input/switzerland-latest.osm.pbf"))
+    handler.apply_file(str(pbf))
     print(f"PBF scan done in {time.perf_counter()-started:.1f}s; {len(handler.nodes):,} tagged nodes, {len(handler.ways):,} ways with tagged nodes", flush=True)
     to_lv95 = Transformer.from_crs(4326, 2056, always_xy=True)
     to_wgs84 = Transformer.from_crs(2056, 4326, always_xy=True)
@@ -110,19 +216,22 @@ def main():
     with rasterio.open(dtms[0]) as src:
         if src.crs.to_epsg() != 2056: raise ValueError("Expected LV95 DTM")
         data, transform = src.read(1, masked=True).filled(np.nan), src.transform
-    features, counts = [], Counter()
+        dtm_files = [Path(path).resolve() for path in src.files]
+    features, counts, foot_counts = [], Counter(), Counter()
     for index, row in enumerate(roads.itertuples(index=False), 1):
         if index % 5000 == 0:
             print(f"Building OSM features {index:,}/{len(roads):,} ({time.perf_counter()-started:.0f}s)", flush=True)
         tags = json.loads(row.all_tags) if isinstance(row.all_tags, str) else row.all_tags
         if not isinstance(tags, dict) or not tags.get("highway"): raise ValueError("Missing OSM tags")
         status, direction, reason = assess(tags)
+        foot_status, run_surface = assess_foot(tags)
+        grade_needed = needs_grade(status, foot_status, tags["highway"])
         line = row.geometry
         if line.is_empty or not line.is_valid or line.length <= 0: continue
         barriers = [(line.project(p), i, t, *obstacle(t)) for i in handler.ways.get(int(row.osm_id), [])
                     for p, t in [nodes[i]] if line.distance(p) < .2]
         structure = tags.get("bridge", "no") not in {"no", "0", "false", ""} or tags.get("tunnel", "no") not in {"no", "0", "false", ""}
-        if status == "no":
+        if not grade_needed:
             xs, heights = np.array([0., line.length]), np.array([np.nan, np.nan])
         else:
             xs, heights = sample_profile(line, data, transform)
@@ -138,8 +247,8 @@ def main():
             if problems and status != "no":
                 state = "review"
                 explanation = "; ".join(filter(None, [reason, *problems]))
-            if status == "no":
-                grade, height = None, "Nicht berechnet – nicht im Rennvelo-Profil"
+            if not grade_needed:
+                grade, height = None, "Nicht berechnet – ausserhalb Fuss-/Rennvelo-Netz"
             else:
                 a, b = np.interp([start, end], xs, heights)
                 # Do not estimate slopes across missing samples or bridge/tunnel terrain.
@@ -151,6 +260,7 @@ def main():
                       (to_wgs84.transform(x,y) for x,y,*_ in geometry.coords)]
             features.append({"type": "Feature", "properties": {
                 "kind": "osm", "osm": str(row.osm_id), "name": tags.get("name", ""), "status": state,
+                "foot_status": foot_status, "run_surface": run_surface,
                 "direction": direction, "grade": grade, "surface": tags.get("surface", "unbekannt"),
                 "reason": explanation, "height": height,
                 "tags": json.dumps(source_tags(tags), ensure_ascii=False, sort_keys=True, separators=(",", ":")),
@@ -160,6 +270,7 @@ def main():
                                        ensure_ascii=False, sort_keys=True, separators=(",", ":"))},
                 "geometry": {"type": "LineString", "coordinates": coords}})
             counts[state] += 1
+            foot_counts[foot_status] += 1
     print(f"Writing {len(features):,} map features ({time.perf_counter()-started:.0f}s)", flush=True)
     output = GIS / "work/roads.geojson"
     content = {"type": "FeatureCollection", "features": features,
@@ -179,13 +290,20 @@ def main():
     staging.unlink(missing_ok=True)
     print("Converting GeoJSON to PMTiles", flush=True)
     subprocess.run([str(bundled) if bundled.exists() else "ogr2ogr", "-f", "PMTiles",
-                    "-dsco", "NAME=HFM Rennvelo",
-                    "-dsco", "DESCRIPTION=OSM-derived roadbike assessment, ODbL; terrain grades are not surveyed road heights.",
+                    "-dsco", "NAME=HFM Routenkarte",
+                    "-dsco", "DESCRIPTION=OSM-derived roadbike and running views, ODbL; terrain grades are not surveyed road heights.",
                     "-nln", "roads", "-dsco", "MINZOOM=11", "-dsco", "MAXZOOM=16",
                     "-dsco", "MAX_SIZE=5000000", str(staging), str(output)], check=True, env=env)
     subprocess.run(["pmtiles", "verify", str(staging)], check=True)
     staging.replace(archive)
+    method = GIS.parent / "site/data/method.json"
+    method_tmp = method.with_suffix(".json.part")
+    method_tmp.write_text(json.dumps(method_metadata(pbf, GIS / "work/osm_roads.gpkg", dtm_files,
+                                                     osm_header, counts, foot_counts, archive),
+                                    indent=2, ensure_ascii=False) + "\n")
+    method_tmp.replace(method)
     print(json.dumps(dict(counts), indent=2))
+    print(f"Running foot access: {dict(foot_counts)}")
     print(f"{archive}: {archive.stat().st_size / 1024**2:.1f} MiB; {len(handler.ways)} ways with tagged nodes")
 
 

@@ -24,14 +24,50 @@ map.addControl(
 const status = document.querySelector(".status");
 const uncertain = document.querySelector("#uncertain");
 const gradient = document.querySelector("#gradient");
+const opacity = document.querySelector("#basemap-opacity");
+const opacityValue = document.querySelector("#basemap-opacity-value");
+const modes = document.querySelectorAll('input[name="map-mode"]');
 const colour = ["case", ["==", ["get", "grade"], null], "#727b85",
   ["step", ["abs", ["get", "grade"]], "#15805a", 3, "#8a9a26", 6, "#d88112", 10, "#c44136", 15, "#85268c"]];
+let activeMode = "roadbike";
+let routeSourceLoaded = false;
+let routeSourceFailed = false;
+let basemapFailed = false;
+
+function updateStatus() {
+  if (routeSourceFailed && basemapFailed) status.textContent = "Grundkarte und Routendaten konnten nicht geladen werden.";
+  else if (routeSourceFailed) status.textContent = "Rennvelo-/Laufdaten konnten nicht geladen werden.";
+  else if (basemapFailed && routeSourceLoaded) status.textContent = "Routendaten geladen; Grundkarte meldet einen Fehler.";
+  else if (basemapFailed) status.textContent = "Grundkarte konnte nicht geladen werden.";
+  else if (routeSourceLoaded) status.textContent = activeMode === "running" ? "Laufen · Fusszugang und Belag gemäss OSM" : "Rennvelo · Belag und Zugang gemäss OSM";
+}
+
+map.on("sourcedata", (event) => {
+  if (event.sourceId === "roads" && event.isSourceLoaded) {
+    routeSourceLoaded = true;
+    updateStatus();
+  }
+});
+
+map.on("error", (event) => {
+  console.error(event.error);
+  if (event.sourceId === "roads") routeSourceFailed = true;
+  else basemapFailed = true;
+  updateStatus();
+});
 
 map.on("load", () => {
   map.addSource("roads", {
     type: "vector",
     url: `pmtiles://${new URL("./data/roads.pmtiles", import.meta.url).href}`,
     attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
+  });
+  map.addSource("basemap-fade", { type: "geojson", data: {
+    type: "Feature", properties: {},
+    geometry: { type: "Polygon", coordinates: [[[-180, -85], [180, -85], [180, 85], [-180, 85], [-180, -85]]] },
+  } });
+  map.addLayer({ id: "basemap-fade", type: "fill", source: "basemap-fade",
+    paint: { "fill-color": "#f7f7f2", "fill-opacity": 0 },
   });
   const source = { source: "roads", "source-layer": "roads", minzoom: 11 };
   const osm = ["==", ["get", "kind"], "osm"];
@@ -63,21 +99,67 @@ map.on("load", () => {
        "icon-image": "bike-direction", "icon-size": .65, "icon-rotation-alignment": "map",
        "icon-keep-upright": false, "icon-rotate": ["case", ["==", ["get", "direction"], "reverse"], 180, 0] },
   });
+  const run = ["==", ["get", "foot_status"], "yes"];
+  map.addLayer({ id: "run-paved", type: "line", ...source,
+    filter: ["all", osm, run, ["==", ["get", "run_surface"], "paved"]],
+    layout: { visibility: "none", "line-join": "round", "line-cap": "round" },
+    paint: { "line-color": "#2d6c89", "line-width": 3.5 },
+  });
+  map.addLayer({ id: "run-unpaved", type: "line", ...source,
+    filter: ["all", osm, run, ["==", ["get", "run_surface"], "unpaved"]],
+    layout: { visibility: "none", "line-join": "round", "line-cap": "round" },
+    paint: { "line-color": "#a65b18", "line-width": 3.5, "line-dasharray": [3, 3] },
+  });
+  map.addLayer({ id: "run-unknown", type: "line", ...source,
+    filter: ["all", osm, run, ["==", ["get", "run_surface"], "unknown"]],
+    layout: { visibility: "none", "line-join": "round", "line-cap": "round" },
+    paint: { "line-color": "#727b85", "line-width": 3, "line-dasharray": [1, 1] },
+  });
+  map.addLayer({ id: "run-check", type: "line", ...source,
+    filter: ["all", osm, ["==", ["get", "foot_status"], "review"]],
+    layout: { visibility: "none", "line-join": "round", "line-cap": "round" },
+    paint: { "line-color": "#666", "line-width": 2.5, "line-dasharray": [2, 2] },
+  });
+  const updateUnclear = () => {
+    map.setLayoutProperty("roadbike-check", "visibility", activeMode === "roadbike" && uncertain.checked ? "visible" : "none");
+    map.setLayoutProperty("run-check", "visibility", activeMode === "running" && uncertain.checked ? "visible" : "none");
+  };
+  const updateGradient = () => {
+    const graded = gradient.checked ? colour : null;
+    map.setPaintProperty("roadbike", "line-color", graded || "#15805a");
+    map.setPaintProperty("run-paved", "line-color", graded || "#2d6c89");
+    map.setPaintProperty("run-unpaved", "line-color", graded || "#a65b18");
+    map.setPaintProperty("run-unknown", "line-color", graded || "#727b85");
+    document.querySelector("#gradient-legend").hidden = !gradient.checked;
+    document.querySelector("#plain-legend").hidden = gradient.checked || activeMode === "running";
+  };
+  const updateMode = () => {
+    activeMode = document.querySelector('input[name="map-mode"]:checked').value;
+    const running = activeMode === "running";
+    for (const id of ["roadbike", "roadbike-direction"]) map.setLayoutProperty(id, "visibility", running ? "none" : "visible");
+    for (const id of ["run-paved", "run-unpaved", "run-unknown"]) map.setLayoutProperty(id, "visibility", running ? "visible" : "none");
+    document.querySelector("#roadbike-legend").hidden = running;
+    document.querySelector("#running-legend").hidden = !running;
+    updateUnclear();
+    updateGradient();
+    updateStatus();
+  };
+  modes.forEach((radio) => radio.addEventListener("change", updateMode));
   uncertain.addEventListener("change", () => {
-    map.setLayoutProperty("roadbike-check", "visibility", uncertain.checked ? "visible" : "none");
+    updateUnclear();
   });
   gradient.addEventListener("change", () => {
-    map.setPaintProperty("roadbike", "line-color", gradient.checked ? colour : "#15805a");
-    document.querySelector("#gradient-legend").hidden = !gradient.checked;
-    document.querySelector("#plain-legend").hidden = gradient.checked;
+    updateGradient();
   });
+  opacity.addEventListener("input", () => {
+    const value = Number(opacity.value);
+    opacityValue.value = `${value}%`;
+    map.setPaintProperty("basemap-fade", "fill-opacity", 1 - value / 100);
+  });
+  updateMode();
+  modes.forEach((radio) => { radio.disabled = false; });
   uncertain.disabled = gradient.disabled = false;
-  status.textContent = "Rennvelo · Belag und Zugang gemäss OSM";
-});
-
-map.on("error", (event) => {
-  console.error(event.error);
-  status.textContent = "Kartendaten konnten nicht geladen werden. Details in Browser-Konsole.";
+  opacity.disabled = false;
 });
 
 function parseJson(value, fallback) {
@@ -133,7 +215,8 @@ function addRawTags(parent, values) {
     for (const node of barriers) {
       const nodeTags = Object.entries(node.tags || {}).map(([key, value]) => `${key}=${value}`).join(" · ");
       const paragraph = document.createElement("p");
-      paragraph.textContent = `Node ${node.osm}: ${nodeTags || "keine Tags"} (${node.status}${node.reason ? `: ${node.reason}` : ""})`;
+      const evaluation = activeMode === "roadbike" ? ` (${node.status}${node.reason ? `: ${node.reason}` : ""})` : "";
+      paragraph.textContent = `Node ${node.osm}: ${nodeTags || "keine Tags"}${evaluation}`;
       if (/^\d+$/.test(node.osm)) {
         const link = document.createElement("a");
         link.href = `https://www.openstreetmap.org/node/${node.osm}`;
@@ -152,16 +235,23 @@ function addOsmPopup(panel, values) {
   const title = document.createElement("strong");
   title.textContent = `${values.name || values.tags && parseJson(values.tags, {}).highway || "Strasse / Weg"} · OpenStreetMap`;
   section.append(title);
-  const labels = {
-    yes: "Rennvelo-Kandidat gemäss Kartendaten",
-    review: "Prüfen – Kartendaten unklar",
-    no: "Nicht im Rennvelo-Profil markiert",
-  };
-  addParagraph(section, `Einordnung: ${labels[values.status] || "unbekannt"}`);
-  if (values.reason) addParagraph(section, `Grund: ${values.reason}`);
-  addParagraph(section, `Neigung: ${values.grade == null ? values.height || "unbekannt" : `ca. ${Math.abs(values.grade).toFixed(1)} % (Abschnitt bis 100 m)`}`);
-  const directions = { both: "beide Richtungen", forward: "OSM-Wayrichtung", reverse: "gegen OSM-Wayrichtung", none: "keine", review: "prüfen" };
-  addParagraph(section, `Velo-Richtung: ${directions[values.direction] || "unbekannt"}`);
+  const surface = { paved: "befestigt", unpaved: "unbefestigt", unknown: "unbekannt" };
+  if (activeMode === "roadbike") {
+    const labels = {
+      yes: "Rennvelo-Kandidat gemäss Kartendaten",
+      review: "Prüfen – Kartendaten unklar",
+      no: "Nicht im Rennvelo-Profil markiert",
+    };
+    addParagraph(section, `Einordnung: ${labels[values.status] || "unbekannt"}`);
+    if (values.reason) addParagraph(section, `Grund: ${values.reason}`);
+    addParagraph(section, `Neigung: ${values.grade == null ? values.height || "unbekannt" : `ca. ${Math.abs(values.grade).toFixed(1)} % (Abschnitt bis 100 m)`}`);
+    const directions = { both: "beide Richtungen", forward: "OSM-Wayrichtung", reverse: "gegen OSM-Wayrichtung", none: "keine", review: "prüfen" };
+    addParagraph(section, `Velo-Richtung: ${directions[values.direction] || "unbekannt"}`);
+  } else {
+    const foot = { yes: "zugänglich gemäss Kartendaten", review: "Zugang prüfen", no: "nicht im Laufnetz" };
+    addParagraph(section, `Laufen: ${foot[values.foot_status] || "Zugang prüfen"}; Belag ${surface[values.run_surface] || "unbekannt"}`);
+    addParagraph(section, `Neigung: ${values.grade == null ? values.height || "unbekannt" : `ca. ${Math.abs(values.grade).toFixed(1)} % (Abschnitt bis 100 m)`}`);
+  }
   addRawTags(section, values);
   if (/^\d+$/.test(values.osm)) {
     const link = document.createElement("a");

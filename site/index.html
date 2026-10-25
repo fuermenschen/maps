@@ -29,37 +29,80 @@
         Rennvelo-Kartendaten werden geladen …
       </p>
     </header>
-    <main id="map" aria-label="Karte von Winterthur und Umgebung"></main>
-    <section class="map-tools" aria-label="Rennvelo-Kartenansicht">
-      <strong>Rennvelo</strong>
-      <label><input id="gradient" type="checkbox" checked disabled /> Nach Neigung einfärben</label>
-      <label><input id="uncertain" type="checkbox" disabled /> Unklare Abschnitte zeigen</label>
-      <details class="full-legend" open>
-        <summary>Legende der Rennvelo-Markierungen</summary>
-        <dl class="line-legend">
-          <dt><i class="legend-solid" aria-hidden="true"></i> Durchgezogen</dt>
-          <dd>Befestigt und mit Rennvelo befahrbar gemäss OSM und Zugangsregeln. Auch Pflaster und Kopfsteinpflaster.</dd>
-          <dt><i class="legend-dashed" aria-hidden="true"></i> Grau gestrichelt</dt>
-          <dd>Belag, Zugang, Fahrtrichtung oder Hindernis unklar. Nur mit «Unklare Abschnitte zeigen» sichtbar. Anklicken für Grund.</dd>
-          <dt><span class="legend-arrow" aria-hidden="true">→</span> Richtungspfeil</dt>
-          <dd>Erlaubte Velo-Fahrtrichtung bei Einbahnregel. Velo-Gegenverkehr wird berücksichtigt. Pfeile ab Zoom 14.</dd>
-        </dl>
-        <div id="gradient-legend">
-          <strong>Neigung – Steigung oder Gefälle</strong>
-          <div class="legend" aria-label="Betrag der Neigung in Prozent">
-            <span><i style="background:#15805a"></i>0 bis &lt;3 %</span>
-            <span><i style="background:#8a9a26"></i>3 bis &lt;6 %</span>
-            <span><i style="background:#d88112"></i>6 bis &lt;10 %</span>
-            <span><i style="background:#c44136"></i>10 bis &lt;15 %</span>
-            <span><i style="background:#85268c"></i>ab 15 %</span>
-            <span><i style="background:#727b85"></i>Keine verlässliche Höhe</span>
-          </div>
-          <p>Ungefähre mittlere Geländeneigung pro Abschnitt (bis 100 m), kein punktuelles Maximum. Grau durchgezogen: Zugang geeignet, Höhe fehlt oder Bauwerk wie Brücke/Tunnel.</p>
+    <div class="map-shell">
+      <main id="map" aria-label="Karte von Winterthur und Umgebung"></main>
+      <details class="map-tools" open>
+        <summary>Kartenoptionen</summary>
+        <div class="map-tools-content">
+          <fieldset class="map-mode">
+            <legend>Ansicht</legend>
+            <label><input type="radio" name="map-mode" value="roadbike" checked disabled /> Rennvelo</label>
+            <label><input type="radio" name="map-mode" value="running" disabled /> Laufen</label>
+          </fieldset>
+          <label id="gradient-control"><input id="gradient" type="checkbox" checked disabled /> Neigung einfärben</label>
+          <label><input id="uncertain" type="checkbox" disabled /> Unklare Abschnitte zeigen</label>
+          <label class="opacity-control" for="basemap-opacity">
+            <span>Deckkraft Grundkarte <output id="basemap-opacity-value">100%</output></span>
+            <input id="basemap-opacity" type="range" min="0" max="100" step="5" value="100" disabled />
+          </label>
+
+          <details class="full-legend" id="gradient-legend">
+            <summary>Legende Neigungsfarben</summary>
+            <strong>Steigung oder Gefälle</strong>
+            <div class="legend" aria-label="Betrag der Neigung in Prozent">
+              <span><i style="background:#15805a"></i>0 bis &lt;3 %</span>
+              <span><i style="background:#8a9a26"></i>3 bis &lt;6 %</span>
+              <span><i style="background:#d88112"></i>6 bis &lt;10 %</span>
+              <span><i style="background:#c44136"></i>10 bis &lt;15 %</span>
+              <span><i style="background:#85268c"></i>ab 15 %</span>
+              <span><i style="background:#727b85"></i>Keine verlässliche Höhe</span>
+            </div>
+            <p>Betrag mittlerer Geländeneigung pro Abschnitt bis 100 m; kein punktuelles Maximum.</p>
+          </details>
+
+          <details class="full-legend" id="roadbike-legend">
+            <summary>Legende Rennvelo</summary>
+            <dl class="line-legend">
+              <dt><i class="legend-solid" aria-hidden="true"></i> Durchgezogen</dt>
+              <dd>Befestigt und mit Rennvelo befahrbar gemäss OSM und Zugangsregeln. Auch Pflaster und Kopfsteinpflaster.</dd>
+              <dt><i class="legend-dashed" aria-hidden="true"></i> Grau gestrichelt</dt>
+              <dd>Belag, Zugang, Fahrtrichtung oder Hindernis unklar. Nur mit «Unklare Abschnitte zeigen» sichtbar. Anklicken für Grund.</dd>
+              <dt><span class="legend-arrow" aria-hidden="true">→</span> Richtungspfeil</dt>
+              <dd>Erlaubte Velo-Fahrtrichtung bei Einbahnregel. Velo-Gegenverkehr wird berücksichtigt. Pfeile ab Zoom 14.</dd>
+            </dl>
+            <p id="plain-legend" hidden>Ohne Neigungsfarben sind alle geeigneten Abschnitte grün. Grau gestrichelt bleibt «prüfen».</p>
+            <p><strong>Grundkarte ≠ Rennvelo-Markierung:</strong> Feine Striche und Symbole der swisstopo-Grundkarte zeigen Wege und Gelände, keine von uns geprüfte Befahrbarkeit.</p>
+            <p>Markierungen ab Zoom 11. Keine Markierung bedeutet nicht automatisch Fahrverbot. Fehlender Pfeil allein bestätigt keine freie Fahrt in beide Richtungen; Details anklicken.</p>
+          </details>
+
+          <details class="full-legend" id="running-legend" hidden>
+            <summary>Legende Laufen</summary>
+            <dl class="line-legend">
+              <dt><i class="run-paved" aria-hidden="true"></i> Befestigt · durchgezogen</dt>
+              <dd>Fusszugängliche Wege mit erfasstem befestigtem Belag.</dd>
+              <dt><i class="run-unpaved" aria-hidden="true"></i> Unbefestigt · gestrichelt</dt>
+              <dd>Fusszugängliche Wege mit erfasstem unbefestigtem Belag.</dd>
+              <dt><i class="run-unknown" aria-hidden="true"></i> Belag unbekannt</dt>
+              <dd>Fusszugänglich, Belag nicht ausreichend erfasst.</dd>
+              <dt><i class="legend-dashed" aria-hidden="true"></i> Grau gestrichelt</dt>
+              <dd>Fusszugang unklar; optional über «Unklare Abschnitte zeigen».</dd>
+            </dl>
+            <p>Befestigt/unbefestigt bleibt durch durchgezogene/gestrichelte Linien erkennbar, auch wenn Neigung eingefärbt ist. Kein Lauf-Score und keine Laufzeitberechnung.</p>
+          </details>
+
+          <details class="method-info">
+            <summary>Methode &amp; Daten</summary>
+            <p>Gebiet: bestehende Winterthur-Bounding-Box, ca. 25.5 × 27.8 km; unverändert.</p>
+            <p><a href="https://download.geofabrik.de/europe/switzerland.html">OpenStreetMap Schweiz</a> liefert Strassen- und Zugangstags. Rennvelo-Einstufung ist Planungshilfe, keine Rechtsprüfung oder Feldverifikation. Fehlende Tags bleiben unklar; bedingte Regeln werden nicht zeitabhängig ausgewertet.</p>
+            <p>Laufen zeigt gemäss OSM fusszugängliche Wege und Belagklassen; ohne Score oder Laufzeitberechnung.</p>
+            <p>Höhen: <a href="https://wms.zh.ch/DEMWCS">Kanton Zürich DTM WCS</a>. WCS-Coverage meldet 0.5 m; Produktmetadaten nennen 0.25 m für 2021/22. Verarbeitet wird 5 m Mosaik mit 5 m Sampling und 10 m zentrierter Glättung. Neigung: Höhenunterschied pro Abschnitt bis 100 m; Brücken- und Tunnelhöhen werden nicht geschätzt.</p>
+            <p><a href="https://maps.zh.ch/wfs/VeloinfrastrukturZHWFS">Kanton Zürich Veloinfrastruktur</a> wurde heruntergeladen, wird aber nicht verwendet. swissTLM3D wurde nicht verwendet.</p>
+            <p><a href="https://www.openstreetmap.org/copyright">OpenStreetMap, ODbL</a>. Daten belegen weder öffentliche Rechte noch aktuelle Signalisation; Barrieren können fehlen.</p>
+            <p><a href="https://www.fedlex.admin.ch/eli/cc/1962/1364_1409_1420/de">VRV Art. 35</a> · <a href="https://www.astra.admin.ch/de/verkehrssituationen">ASTRA cycling guidance</a></p>
+            <p><a href="./data/method.json">Vollständige Datenstände, Quellen und SHA-256-Prüfsummen (JSON)</a>.</p>
+          </details>
         </div>
-        <p id="plain-legend" hidden>Ohne Neigungsfarben sind alle geeigneten Abschnitte grün. Grau gestrichelt bleibt «prüfen».</p>
-        <p><strong>Grundkarte ≠ Rennvelo-Markierung:</strong> Feine Striche und Symbole der swisstopo-Grundkarte zeigen Wege und Gelände, keine von uns geprüfte Befahrbarkeit.</p>
-        <p>Markierungen ab Zoom 11. Keine Markierung bedeutet nicht automatisch Fahrverbot. Fehlender Pfeil allein bestätigt keine freie Fahrt in beide Richtungen; Details anklicken.</p>
       </details>
-    </section>
+    </div>
   </body>
 </html>

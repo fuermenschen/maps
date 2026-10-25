@@ -24,7 +24,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions/configure-pages@v5
       - name: Check published map data
-        run: test -s site/data/roads.pmtiles
+        run: test -s site/data/roads.pmtiles && test -s site/data/method.json
       - uses: actions/upload-pages-artifact@v4
         with:
           path: site
